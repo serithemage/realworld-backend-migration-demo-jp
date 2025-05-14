@@ -1,0 +1,268 @@
+# Task ID: 14
+# Title: モニタリングとアラートの設定
+# Status: pending
+# Dependencies: 5, 6, 7, 9, 10, 11, 12
+# Priority: low
+# Description: CloudWatch ダッシュボード、アラート、および X-Ray による分散トレーシングを設定します。
+# Details:
+1. CloudWatch ダッシュボードの作成:
+```typescript
+const dashboard = new cloudwatch.Dashboard(this, 'RealWorldDashboard', {
+  dashboardName: 'RealWorld-Serverless-Dashboard'
+});
+
+// Lambda メトリクスの追加
+const lambdaMetrics = [
+  userHandler, profileHandler, articleHandler, commentHandler, tagHandler, favoriteHandler, feedHandler
+].map(lambdaFn => {
+  return [
+    new cloudwatch.Metric({
+      namespace: 'AWS/Lambda',
+      metricName: 'Invocations',
+      dimensionsMap: { FunctionName: lambdaFn.functionName },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(1)
+    }),
+    new cloudwatch.Metric({
+      namespace: 'AWS/Lambda',
+      metricName: 'Errors',
+      dimensionsMap: { FunctionName: lambdaFn.functionName },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(1)
+    }),
+    new cloudwatch.Metric({
+      namespace: 'AWS/Lambda',
+      metricName: 'Duration',
+      dimensionsMap: { FunctionName: lambdaFn.functionName },
+      statistic: 'Average',
+      period: cdk.Duration.minutes(1)
+    })
+  ];
+}).flat();
+
+// API Gateway メトリクスの追加
+const apiMetrics = [
+  new cloudwatch.Metric({
+    namespace: 'AWS/ApiGateway',
+    metricName: 'Count',
+    dimensionsMap: { ApiName: api.restApiName },
+    statistic: 'Sum',
+    period: cdk.Duration.minutes(1)
+  }),
+  new cloudwatch.Metric({
+    namespace: 'AWS/ApiGateway',
+    metricName: 'Latency',
+    dimensionsMap: { ApiName: api.restApiName },
+    statistic: 'Average',
+    period: cdk.Duration.minutes(1)
+  }),
+  new cloudwatch.Metric({
+    namespace: 'AWS/ApiGateway',
+    metricName: '4XXError',
+    dimensionsMap: { ApiName: api.restApiName },
+    statistic: 'Sum',
+    period: cdk.Duration.minutes(1)
+  }),
+  new cloudwatch.Metric({
+    namespace: 'AWS/ApiGateway',
+    metricName: '5XXError',
+    dimensionsMap: { ApiName: api.restApiName },
+    statistic: 'Sum',
+    period: cdk.Duration.minutes(1)
+  })
+];
+
+// DynamoDB メトリクスの追加
+const dynamoMetrics = [
+  usersTable, profilesTable, articlesTable, commentsTable, followsTable, favoritesTable, tagsTable
+].map(table => {
+  return [
+    new cloudwatch.Metric({
+      namespace: 'AWS/DynamoDB',
+      metricName: 'ConsumedReadCapacityUnits',
+      dimensionsMap: { TableName: table.tableName },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(1)
+    }),
+    new cloudwatch.Metric({
+      namespace: 'AWS/DynamoDB',
+      metricName: 'ConsumedWriteCapacityUnits',
+      dimensionsMap: { TableName: table.tableName },
+      statistic: 'Sum',
+      period: cdk.Duration.minutes(1)
+    })
+  ];
+}).flat();
+
+// ダッシュボードにウィジェットを追加
+dashboard.addWidgets(
+  new cloudwatch.GraphWidget({
+    title: 'Lambda Invocations',
+    left: lambdaMetrics.filter(m => m.metricName === 'Invocations')
+  }),
+  new cloudwatch.GraphWidget({
+    title: 'Lambda Errors',
+    left: lambdaMetrics.filter(m => m.metricName === 'Errors')
+  }),
+  new cloudwatch.GraphWidget({
+    title: 'Lambda Duration',
+    left: lambdaMetrics.filter(m => m.metricName === 'Duration')
+  }),
+  new cloudwatch.GraphWidget({
+    title: 'API Gateway',
+    left: apiMetrics
+  }),
+  new cloudwatch.GraphWidget({
+    title: 'DynamoDB Read Capacity',
+    left: dynamoMetrics.filter(m => m.metricName === 'ConsumedReadCapacityUnits')
+  }),
+  new cloudwatch.GraphWidget({
+    title: 'DynamoDB Write Capacity',
+    left: dynamoMetrics.filter(m => m.metricName === 'ConsumedWriteCapacityUnits')
+  })
+);
+```
+
+2. CloudWatch アラートの設定:
+```typescript
+// Lambda エラーアラート
+const lambdaErrorAlarm = new cloudwatch.Alarm(this, 'LambdaErrorAlarm', {
+  metric: new cloudwatch.Metric({
+    namespace: 'AWS/Lambda',
+    metricName: 'Errors',
+    dimensionsMap: { FunctionName: articleHandler.functionName },
+    statistic: 'Sum',
+    period: cdk.Duration.minutes(1)
+  }),
+  threshold: 5,
+  evaluationPeriods: 1,
+  alarmDescription: 'Alarm if the Article Lambda function has more than 5 errors in 1 minute',
+  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+});
+
+// API Gateway 5XX エラーアラート
+const api5xxErrorAlarm = new cloudwatch.Alarm(this, 'Api5xxErrorAlarm', {
+  metric: new cloudwatch.Metric({
+    namespace: 'AWS/ApiGateway',
+    metricName: '5XXError',
+    dimensionsMap: { ApiName: api.restApiName },
+    statistic: 'Sum',
+    period: cdk.Duration.minutes(1)
+  }),
+  threshold: 10,
+  evaluationPeriods: 1,
+  alarmDescription: 'Alarm if the API Gateway has more than 10 5XX errors in 1 minute',
+  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+});
+
+// DynamoDB スロットリングアラート
+const dynamoThrottlingAlarm = new cloudwatch.Alarm(this, 'DynamoThrottlingAlarm', {
+  metric: new cloudwatch.Metric({
+    namespace: 'AWS/DynamoDB',
+    metricName: 'ThrottledRequests',
+    dimensionsMap: { TableName: articlesTable.tableName },
+    statistic: 'Sum',
+    period: cdk.Duration.minutes(1)
+  }),
+  threshold: 10,
+  evaluationPeriods: 1,
+  alarmDescription: 'Alarm if the Articles table has more than 10 throttled requests in 1 minute',
+  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+});
+```
+
+3. X-Ray トレーシングの設定:
+```typescript
+// Lambda 関数の X-Ray トレーシングを有効化
+const lambdaFunctions = [
+  userHandler, profileHandler, articleHandler, commentHandler, tagHandler, favoriteHandler, feedHandler
+];
+
+lambdaFunctions.forEach(lambdaFn => {
+  lambdaFn.addEnvironment('AWS_XRAY_TRACING_NAME', lambdaFn.functionName);
+  lambdaFn.addToRolePolicy(new iam.PolicyStatement({
+    actions: ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],
+    resources: ['*']
+  }));
+});
+
+// API Gateway の X-Ray トレーシングを有効化
+api.node.defaultChild.addPropertyOverride('TracingEnabled', true);
+```
+
+4. カスタムメトリクスの実装:
+```java
+private void emitCustomMetrics(String metricName, double value, Map<String, String> dimensions) {
+    CloudWatchClient cloudWatchClient = CloudWatchClient.create();
+    
+    List<Dimension> dimensionList = dimensions.entrySet().stream()
+            .map(entry -> Dimension.builder().name(entry.getKey()).value(entry.getValue()).build())
+            .collect(Collectors.toList());
+    
+    MetricDatum datum = MetricDatum.builder()
+            .metricName(metricName)
+            .value(value)
+            .dimensions(dimensionList)
+            .timestamp(Instant.now())
+            .unit(StandardUnit.COUNT)
+            .build();
+    
+    PutMetricDataRequest request = PutMetricDataRequest.builder()
+            .namespace("RealWorld/Custom")
+            .metricData(datum)
+            .build();
+    
+    cloudWatchClient.putMetricData(request);
+}
+
+// 使用例：記事作成時のカスタムメトリクス
+private APIGatewayProxyResponseEvent createArticle(APIGatewayProxyRequestEvent input) {
+    // 記事作成ロジック
+    // ...
+    
+    // カスタムメトリクスの送信
+    emitCustomMetrics("ArticleCreated", 1.0, Map.of(
+            "UserId", userId,
+            "Environment", System.getenv("ENVIRONMENT")
+    ));
+    
+    // レスポンスの返却
+    // ...
+}
+```
+
+# Test Strategy:
+1. CloudWatch ダッシュボードの表示と機能確認
+2. アラートのテスト（テストイベントを生成してアラートがトリガーされることを確認）
+3. X-Ray トレーシングの確認（トレースデータが正しく記録されることを確認）
+4. カスタムメトリクスのテスト（メトリクスが正しく送信されることを確認）
+5. ログフィルタリングとインサイトクエリのテスト
+6. アラート通知の確認（SNS トピックへの通知など）
+7. ダッシュボードのクロスアカウント共有のテスト（必要に応じて）
+8. 異常検出アラームのテスト（必要に応じて）
+
+# Subtasks:
+## 1. CloudWatch Dashboard Creation with Key Metrics [pending]
+### Dependencies: None
+### Description: Design and implement a CloudWatch dashboard that visualizes key metrics for critical AWS services. This includes selecting relevant widgets, arranging them for clarity, and ensuring the dashboard provides a comprehensive overview for SRE, developers, and product teams.
+### Details:
+Identify top-level service metrics (e.g., API Gateway performance, error rates, custom KPIs) and add them as widgets to the dashboard using the CloudWatch console, CLI, or API. Ensure the dashboard is easy to interpret and regularly reviewed for relevance.
+
+## 2. Alert Configuration for Critical Service Thresholds [pending]
+### Dependencies: 14.1
+### Description: Set up CloudWatch alarms for critical service metrics, defining thresholds that trigger alerts when exceeded. Configure notification actions such as sending alerts to an SNS topic or email.
+### Details:
+Determine which metrics require alerting (e.g., high error rates, latency spikes), set appropriate thresholds, and configure alarm actions. Integrate alarms with notification channels to ensure timely response.
+
+## 3. X-Ray Tracing Implementation Across Services [pending]
+### Dependencies: 14.1
+### Description: Enable AWS X-Ray tracing for all relevant services to provide distributed tracing and performance insights across the serverless architecture.
+### Details:
+Instrument Lambda functions, API Gateway, and other supported services with X-Ray. Ensure traces are captured end-to-end and integrated with CloudWatch for unified observability.
+
+## 4. Custom Metrics Implementation for Business Events [pending]
+### Dependencies: 14.1
+### Description: Develop and publish custom CloudWatch metrics that track key business events, such as order creation or user signups, to provide deeper operational and business insights.
+### Details:
+Identify critical business events, instrument code to emit custom metrics to CloudWatch, and add these metrics to the dashboard and alerting setup as needed.
+

@@ -1,0 +1,124 @@
+# Task ID: 8
+# Title: 記事検索とフィルタリング機能の実装
+# Status: pending
+# Dependencies: 2, 7
+# Priority: medium
+# Description: タグ、著者、お気に入りによる記事の検索とフィルタリング機能を実装します。
+# Details:
+1. 記事検索 Lambda 関数の拡張:
+```java
+private APIGatewayProxyResponseEvent listArticles(APIGatewayProxyRequestEvent input) {
+    Map<String, String> queryParams = input.getQueryStringParameters();
+    if (queryParams == null) {
+        queryParams = new HashMap<>();
+    }
+    
+    String tag = queryParams.get("tag");
+    String author = queryParams.get("author");
+    String favorited = queryParams.get("favorited");
+    String limit = queryParams.getOrDefault("limit", "20");
+    String offset = queryParams.getOrDefault("offset", "0");
+    
+    // タグによるフィルタリング
+    if (tag != null && !tag.isEmpty()) {
+        return filterArticlesByTag(tag, Integer.parseInt(limit), Integer.parseInt(offset));
+    }
+    
+    // 著者によるフィルタリング
+    if (author != null && !author.isEmpty()) {
+        return filterArticlesByAuthor(author, Integer.parseInt(limit), Integer.parseInt(offset));
+    }
+    
+    // お気に入りによるフィルタリング
+    if (favorited != null && !favorited.isEmpty()) {
+        return filterArticlesByFavorited(favorited, Integer.parseInt(limit), Integer.parseInt(offset));
+    }
+    
+    // デフォルトの記事リスト取得
+    return getDefaultArticlesList(Integer.parseInt(limit), Integer.parseInt(offset));
+}
+
+private APIGatewayProxyResponseEvent filterArticlesByTag(String tag, int limit, int offset) {
+    // タグによる記事フィルタリングロジックを実装
+}
+
+private APIGatewayProxyResponseEvent filterArticlesByAuthor(String author, int limit, int offset) {
+    // 著者による記事フィルタリングロジックを実装
+}
+
+private APIGatewayProxyResponseEvent filterArticlesByFavorited(String favorited, int limit, int offset) {
+    // お気に入りによる記事フィルタリングロジックを実装
+}
+
+private APIGatewayProxyResponseEvent getDefaultArticlesList(int limit, int offset) {
+    // デフォルトの記事リスト取得ロジックを実装
+}
+```
+
+2. DynamoDB クエリの最適化:
+```java
+private List<Article> queryArticlesByTag(String tag, int limit, int offset) {
+    // タグテーブルからタグに関連する記事IDを取得
+    QueryRequest queryRequest = QueryRequest.builder()
+            .tableName(TAGS_TABLE_NAME)
+            .keyConditionExpression("tagName = :tagName")
+            .expressionAttributeValues(Map.of(":tagName", AttributeValue.builder().s(tag).build()))
+            .build();
+    
+    QueryResponse response = dynamoDbClient.query(queryRequest);
+    
+    // 取得した記事IDを使用して記事の詳細情報を取得
+    // ...
+}
+
+private List<Article> queryArticlesByAuthor(String author, int limit, int offset) {
+    // GSIを使用して著者による記事検索
+    QueryRequest queryRequest = QueryRequest.builder()
+            .tableName(ARTICLES_TABLE_NAME)
+            .indexName("authorId-index")
+            .keyConditionExpression("authorId = :authorId")
+            .expressionAttributeValues(Map.of(":authorId", AttributeValue.builder().s(author).build()))
+            .limit(limit)
+            .build();
+    
+    QueryResponse response = dynamoDbClient.query(queryRequest);
+    
+    // レスポンスの処理
+    // ...
+}
+```
+
+# Test Strategy:
+1. 各フィルタリングオプション（タグ、著者、お気に入り）のユニットテスト
+2. 複数のフィルタリング条件を組み合わせたテスト
+3. ページネーションのテスト（limit と offset パラメータ）
+4. DynamoDB GSI を使用したクエリのパフォーマンステスト
+5. 大量のデータがある場合のスケーラビリティテスト
+6. エッジケースのテスト（存在しないタグ、著者など）
+7. API Gateway を通じたエンドツーエンドテスト
+
+# Subtasks:
+## 1. Tag-based filtering implementation [pending]
+### Dependencies: None
+### Description: Implement the adjacency list pattern for tag-based article filtering in DynamoDB
+### Details:
+Design and implement a data structure using the adjacency list pattern where articles and tags are stored as separate items in the same table. Create composite sort keys with format 'tagValue#article#articleId' to enable efficient querying. Implement application logic to handle multiple tag filters by performing separate queries for each tag and finding the intersection of results.
+
+## 2. Author-based filtering with GSI optimization [pending]
+### Dependencies: None
+### Description: Create and optimize a Global Secondary Index for author-based article filtering
+### Details:
+Design a GSI with author information as the partition key and relevant article metadata as sort key. Implement query logic that efficiently retrieves articles by specific authors. Optimize the GSI structure to minimize data duplication and ensure fast query performance. Include attribute projections to reduce data transfer costs.
+
+## 3. Favorites-based filtering implementation [pending]
+### Dependencies: 8.1, 8.2
+### Description: Develop a system to track and query user favorite articles
+### Details:
+Create a data structure to store user-article favorite relationships. Implement query mechanisms to retrieve a user's favorite articles efficiently. Design the system to handle the many-to-many relationship between users and articles they've favorited. Ensure the implementation works seamlessly with the existing tag and author filtering systems.
+
+## 4. Pagination and sorting logic for all filter types [pending]
+### Dependencies: 8.1, 8.2, 8.3
+### Description: Implement consistent pagination and sorting across all filtering mechanisms
+### Details:
+Develop a unified pagination system that works across tag, author, and favorites filtering. Implement efficient LastEvaluatedKey handling for DynamoDB pagination. Create sorting options (by date, popularity, etc.) that work consistently across all filter types. Optimize the application layer logic to handle pagination when combining multiple filter criteria.
+

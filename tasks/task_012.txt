@@ -1,0 +1,167 @@
+# Task ID: 12
+# Title: フィード機能の実装
+# Status: pending
+# Dependencies: 2, 6, 7
+# Priority: medium
+# Description: ユーザーがフォローしている著者の記事を表示するフィード機能を実装します。
+# Details:
+1. フィード Lambda 関数の実装:
+```java
+public class FeedHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();
+    private final String FOLLOWS_TABLE_NAME = System.getenv("FOLLOWS_TABLE_NAME");
+    private final String ARTICLES_TABLE_NAME = System.getenv("ARTICLES_TABLE_NAME");
+    
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+        String path = input.getPath();
+        String httpMethod = input.getHttpMethod();
+        
+        if (path.equals("/api/articles/feed") && httpMethod.equals("GET")) {
+            return getFeed(input);
+        }
+        
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withBody("Not Found");
+    }
+    
+    private APIGatewayProxyResponseEvent getFeed(APIGatewayProxyRequestEvent input) {
+        // フィード取得ロジックを実装
+        String userId = getUserIdFromToken(input);
+        Map<String, String> queryParams = input.getQueryStringParameters();
+        if (queryParams == null) {
+            queryParams = new HashMap<>();
+        }
+        
+        int limit = Integer.parseInt(queryParams.getOrDefault("limit", "20"));
+        int offset = Integer.parseInt(queryParams.getOrDefault("offset", "0"));
+        
+        // フォローしているユーザーのリストを取得
+        QueryRequest followsQuery = QueryRequest.builder()
+                .tableName(FOLLOWS_TABLE_NAME)
+                .keyConditionExpression("followerId = :followerId")
+                .expressionAttributeValues(Map.of(":followerId", AttributeValue.builder().s(userId).build()))
+                .build();
+        
+        QueryResponse followsResponse = dynamoDbClient.query(followsQuery);
+        
+        List<String> followedUserIds = followsResponse.items().stream()
+                .map(item -> item.get("followeeId").s())
+                .collect(Collectors.toList());
+        
+        if (followedUserIds.isEmpty()) {
+            // フォローしているユーザーがいない場合は空のリストを返す
+            Map<String, Object> result = new HashMap<>();
+            result.put("articles", new ArrayList<>());
+            result.put("articlesCount", 0);
+            
+            try {
+                return new APIGatewayProxyResponseEvent()
+                        .withStatusCode(200)
+                        .withBody(new ObjectMapper().writeValueAsString(result));
+            } catch (JsonProcessingException e) {
+                return new APIGatewayProxyResponseEvent()
+                        .withStatusCode(500)
+                        .withBody("Error processing feed");
+            }
+        }
+        
+        // フォローしているユーザーの記事を取得
+        // DynamoDB では IN 句のような複数値の条件をサポートしていないため、
+        // 各ユーザーごとに個別にクエリを実行し、結果を結合する必要がある
+        List<Map<String, AttributeValue>> articles = new ArrayList<>();
+        
+        for (String followeeId : followedUserIds) {
+            QueryRequest articlesQuery = QueryRequest.builder()
+                    .tableName(ARTICLES_TABLE_NAME)
+                    .indexName("authorId-index")
+                    .keyConditionExpression("authorId = :authorId")
+                    .expressionAttributeValues(Map.of(":authorId", AttributeValue.builder().s(followeeId).build()))
+                    .build();
+            
+            QueryResponse articlesResponse = dynamoDbClient.query(articlesQuery);
+            articles.addAll(articlesResponse.items());
+        }
+        
+        // 作成日時でソート
+        articles.sort((a, b) -> {
+            String dateA = a.get("createdAt").s();
+            String dateB = b.get("createdAt").s();
+            return dateB.compareTo(dateA); // 降順（最新順）
+        });
+        
+        // ページネーション処理
+        int startIndex = Math.min(offset, articles.size());
+        int endIndex = Math.min(offset + limit, articles.size());
+        List<Map<String, AttributeValue>> paginatedArticles = articles.subList(startIndex, endIndex);
+        
+        // 記事データの整形と返却
+        // ...
+    }
+    
+    private String getUserIdFromToken(APIGatewayProxyRequestEvent input) {
+        // トークンからユーザーIDを取得するロジック
+        // ...
+    }
+}
+```
+
+2. API Gateway との統合:
+```typescript
+const feedHandler = new lambda.Function(this, 'FeedHandler', {
+  runtime: lambda.Runtime.JAVA_21,
+  code: lambda.Code.fromAsset('../target/feed-handler.jar'),
+  handler: 'com.realworld.FeedHandler::handleRequest',
+  environment: {
+    FOLLOWS_TABLE_NAME: followsTable.tableName,
+    ARTICLES_TABLE_NAME: articlesTable.tableName
+  },
+  timeout: cdk.Duration.seconds(30)
+});
+
+followsTable.grantReadData(feedHandler);
+articlesTable.grantReadData(feedHandler);
+
+articlesResource.addResource('feed').addMethod('GET', new apigateway.LambdaIntegration(feedHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+```
+
+# Test Strategy:
+1. フィードエンドポイントのユニットテスト
+2. DynamoDB との統合テスト（モックを使用）
+3. フォローしているユーザーの記事取得ロジックのテスト
+4. ページネーション処理のテスト（limit と offset パラメータ）
+5. ソートロジックのテスト（最新順）
+6. API Gateway を通じたエンドツーエンドテスト
+7. 認証と認可のテスト
+8. エッジケースのテスト（フォローしているユーザーがいない場合など）
+9. パフォーマンステスト（多数のフォローユーザーがいる場合）
+
+# Subtasks:
+## 1. Implement Followed Users List Retrieval [pending]
+### Dependencies: None
+### Description: Create functionality to retrieve the list of users that the current user follows from DynamoDB
+### Details:
+Use BatchGetItem API to efficiently retrieve followed users data. Implement error handling for cases where the user follows more than 100 users (DynamoDB BatchGetItem limit). Consider using a dedicated GSI for follows relationship to optimize query performance.
+
+## 2. Implement Multi-Author Article Querying with GSI [pending]
+### Dependencies: 12.1
+### Description: Develop functionality to query articles by multiple authors using a Global Secondary Index
+### Details:
+Create a GSI with author as partition key and createdAt as sort key. Since DynamoDB doesn't support IN queries directly, implement multiple parallel queries (one per author) and merge results client-side. Use AttributesToGet parameter to minimize data transfer and improve performance.
+
+## 3. Implement Sorting and Pagination Logic [pending]
+### Dependencies: 12.2
+### Description: Create efficient sorting and pagination mechanisms for the feed
+### Details:
+Implement client-side sorting of merged results by date. Create pagination using LastEvaluatedKey from DynamoDB responses. Handle edge cases where new articles are added during pagination. Implement cursor-based pagination to maintain consistency across page requests.
+
+## 4. Implement Response Formatting with Favorited Status [pending]
+### Dependencies: 12.3
+### Description: Format the feed response to include favorited status for each article
+### Details:
+Query the favorites table to determine if current user has favorited each article. Use BatchGetItem to efficiently retrieve favorite status for multiple articles. Format the final response according to API specifications, including article metadata, author information, and favorited status.
+

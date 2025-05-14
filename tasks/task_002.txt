@@ -1,0 +1,97 @@
+# Task ID: 2
+# Title: DynamoDB データモデルの設計と実装
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: RealWorld アプリケーションのデータモデルを設計し、DynamoDB テーブルを作成します。JPA/SQL から NoSQL への移行戦略を実装します。
+# Details:
+1. 以下の DynamoDB テーブルを設計・作成:
+   - Users テーブル（パーティションキー: userId）
+   - Profiles テーブル（パーティションキー: userId）
+   - Articles テーブル（パーティションキー: slug, ソートキー: authorId）
+   - Comments テーブル（パーティションキー: articleId, ソートキー: commentId）
+   - Follows テーブル（パーティションキー: followerId, ソートキー: followeeId）
+   - Favorites テーブル（パーティションキー: userId, ソートキー: articleId）
+   - Tags テーブル（パーティションキー: tagName）
+
+2. GSI (Global Secondary Index) の設計:
+   - Articles テーブルに authorId-GSI を追加（著者による記事検索用）
+   - Articles テーブルに createdAt-GSI を追加（タイムライン表示用）
+
+3. CDK でのテーブル定義:
+```typescript
+const usersTable = new dynamodb.Table(this, 'UsersTable', {
+  partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: cdk.RemovalPolicy.RETAIN,
+  pointInTimeRecovery: true
+});
+
+const articlesTable = new dynamodb.Table(this, 'ArticlesTable', {
+  partitionKey: { name: 'slug', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'authorId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: cdk.RemovalPolicy.RETAIN,
+  pointInTimeRecovery: true
+});
+
+articlesTable.addGlobalSecondaryIndex({
+  indexName: 'authorId-index',
+  partitionKey: { name: 'authorId', type: dynamodb.AttributeType.STRING },
+  sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },
+  projectionType: dynamodb.ProjectionType.ALL
+});
+```
+
+4. データアクセスパターンの文書化と検証
+
+# Test Strategy:
+1. AWS CLI または AWS Management Console を使用して、テーブルが正しく作成されたことを確認
+2. サンプルデータを使用して、各テーブルへの基本的な CRUD 操作をテスト
+3. 主要なアクセスパターンに対するクエリのパフォーマンステスト
+4. NoSQL Workbench を使用したデータモデルの検証
+5. DynamoDB Local を使用したローカル開発環境でのテスト
+
+# Subtasks:
+## 1. User and Profile Table Design [pending]
+### Dependencies: None
+### Description: Design the User and Profile table structure with appropriate partition and sort keys
+### Details:
+Create a data model for User and Profile entities considering denormalization strategies. Define primary keys that ensure uniqueness and avoid hot keys. Document attribute structure with shorter attribute names to reduce item size. Consider compression strategies for larger profile attributes or storing them in S3.
+
+## 2. Article and Comment Table Design [pending]
+### Dependencies: 2.1
+### Description: Design the Article and Comment table structure with appropriate indexes for efficient querying
+### Details:
+Model Article and Comment entities with consideration for access patterns like retrieving all comments for an article. Define primary keys and indexes that support efficient queries. Consider storing large article content in S3 if needed. Plan for uniform distribution of reads/writes across partitions.
+
+## 3. Relationship Tables Design [pending]
+### Dependencies: 2.1, 2.2
+### Description: Design tables for Follows and Favorites relationships with efficient query patterns
+### Details:
+Create data models for many-to-many relationships between users (Follows) and between users and articles (Favorites). Define appropriate partition and sort keys that support common access patterns like finding all followers of a user or all articles favorited by a user.
+
+## 4. Tags Table Design [pending]
+### Dependencies: 2.2
+### Description: Design the Tags table structure and its relationships with Articles
+### Details:
+Create a data model for Tags and their relationships with Articles. Consider access patterns like finding all articles with a specific tag or all tags for an article. Design keys to ensure uniform distribution and avoid hot partitions.
+
+## 5. GSI Planning and Implementation [pending]
+### Dependencies: 2.1, 2.2, 2.3, 2.4
+### Description: Plan and design Global Secondary Indexes for all tables to support various access patterns
+### Details:
+Identify and document all required access patterns. Design GSIs to support these patterns efficiently. Consider the trade-offs between storage costs and query efficiency. Ensure GSIs are designed to avoid hot keys and provide uniform distribution.
+
+## 6. Access Pattern Documentation and Validation [pending]
+### Dependencies: 2.5
+### Description: Document all access patterns and validate them against the designed data model
+### Details:
+Create comprehensive documentation of all access patterns. Map each access pattern to specific table operations (Query, Scan, GetItem, etc.). Validate that each access pattern can be efficiently executed with the designed data model. Identify and resolve any inefficient patterns.
+
+## 7. CDK Implementation of Tables [pending]
+### Dependencies: 2.6
+### Description: Implement all designed tables using AWS CDK with proper configurations
+### Details:
+Translate the data model designs into AWS CDK code. Configure appropriate provisioned throughput or on-demand capacity. Set up auto-scaling if using provisioned capacity. Implement proper TTL attributes if needed. Configure backup and recovery options. Implement best practices for batching operations where appropriate.
+

@@ -1,0 +1,100 @@
+# Task ID: 3
+# Title: 認証サービスの実装（Amazon Cognito または Keycloak）
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: ユーザー認証のための Amazon Cognito の設定、または既存の Keycloak を AWS に移行します。JWT 認証を実装し、認証 API エンドポイントを作成します。
+# Details:
+1. Amazon Cognito ユーザープールの設定:
+```typescript
+const userPool = new cognito.UserPool(this, 'RealWorldUserPool', {
+  selfSignUpEnabled: true,
+  autoVerify: { email: true },
+  standardAttributes: {
+    email: { required: true, mutable: true },
+    username: { required: true, mutable: false }
+  },
+  customAttributes: {
+    bio: new cognito.StringAttribute({ mutable: true }),
+    image: new cognito.StringAttribute({ mutable: true })
+  },
+  passwordPolicy: {
+    minLength: 8,
+    requireLowercase: true,
+    requireUppercase: true,
+    requireDigits: true,
+    requireSymbols: false
+  },
+  accountRecovery: cognito.AccountRecovery.EMAIL_ONLY
+});
+
+const userPoolClient = new cognito.UserPoolClient(this, 'RealWorldUserPoolClient', {
+  userPool,
+  authFlows: {
+    userPassword: true,
+    userSrp: true
+  },
+  generateSecret: false
+});
+```
+
+2. Keycloak を使用する場合の AWS 移行:
+   - EC2 または ECS 上に Keycloak をデプロイ
+   - RDS または Aurora Serverless をバックエンドデータベースとして設定
+   - ALB または API Gateway を使用してアクセスを提供
+
+3. JWT 認証の実装:
+   - Cognito JWT トークンの検証ロジックを実装
+   - API Gateway オーソライザーの設定
+
+4. 認証 Lambda 関数の実装:
+```java
+public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+        // ユーザー認証ロジックを実装
+        // JWT トークンの生成と検証
+        // ユーザー登録とログイン処理
+    }
+}
+```
+
+# Test Strategy:
+1. Cognito ユーザープールに対するユーザー登録とログインのテスト
+2. JWT トークンの生成と検証のユニットテスト
+3. API Gateway オーソライザーの統合テスト
+4. Postman を使用した認証エンドポイントのテスト
+5. 異なる認証シナリオ（有効なトークン、無効なトークン、期限切れトークン）のテスト
+6. Keycloak を使用する場合は、Keycloak の設定とトークン検証のテスト
+
+# Subtasks:
+## 1. Cognito User Pool Setup and Configuration [pending]
+### Dependencies: None
+### Description: Create and configure an Amazon Cognito user pool, including setting up app clients, domains, callback URLs, and attribute permissions.
+### Details:
+Follow AWS documentation and tutorials to create a user pool, configure app clients (public/private), set callback URLs, and review advanced settings such as authentication flows and token expiration.
+
+## 2. User Registration and Login Flow Implementation [pending]
+### Dependencies: 3.1
+### Description: Implement user registration and login flows using the configured Cognito user pool, ensuring proper handling of sign-up, confirmation, and sign-in processes.
+### Details:
+Develop backend and/or frontend logic to interact with Cognito APIs for user registration, email/phone verification, and login. Ensure error handling and user feedback are in place.
+
+## 3. JWT Token Validation and Handling [pending]
+### Dependencies: 3.2
+### Description: Implement secure handling and validation of JWT tokens issued by Cognito, including signature verification and claims extraction.
+### Details:
+Integrate JWT libraries to validate tokens, check expiration, and extract user claims for authorization. Ensure tokens are securely stored and transmitted.
+
+## 4. API Gateway Authorizer Configuration [pending]
+### Dependencies: 3.3
+### Description: Configure API Gateway to use Cognito user pool authorizer for securing API endpoints.
+### Details:
+Set up API Gateway authorizer to validate incoming requests using Cognito JWT tokens. Map user claims to API access policies as needed.
+
+## 5. Authentication API Endpoints Implementation [pending]
+### Dependencies: 3.4
+### Description: Develop authentication-related API endpoints (e.g., login, refresh, logout) and ensure they are protected by the configured authorizer.
+### Details:
+Implement endpoints for authentication flows, token refresh, and logout. Ensure endpoints are integrated with Cognito and protected by API Gateway authorizer.
+

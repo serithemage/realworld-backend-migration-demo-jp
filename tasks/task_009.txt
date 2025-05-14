@@ -1,0 +1,154 @@
+# Task ID: 9
+# Title: タグ管理サービスの実装
+# Status: pending
+# Dependencies: 2, 7
+# Priority: medium
+# Description: 記事のタグ機能と、タグリストを取得するためのエンドポイントを実装します。
+# Details:
+1. タグ管理 Lambda 関数の実装:
+```java
+public class TagHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();
+    private final String TAGS_TABLE_NAME = System.getenv("TAGS_TABLE_NAME");
+    
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+        String path = input.getPath();
+        String httpMethod = input.getHttpMethod();
+        
+        if (path.equals("/api/tags") && httpMethod.equals("GET")) {
+            return getTags();
+        }
+        
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withBody("Not Found");
+    }
+    
+    private APIGatewayProxyResponseEvent getTags() {
+        // すべてのタグを取得するロジックを実装
+        ScanRequest scanRequest = ScanRequest.builder()
+                .tableName(TAGS_TABLE_NAME)
+                .build();
+        
+        ScanResponse response = dynamoDbClient.scan(scanRequest);
+        
+        List<String> tags = response.items().stream()
+                .map(item -> item.get("tagName").s())
+                .collect(Collectors.toList());
+        
+        Map<String, List<String>> result = new HashMap<>();
+        result.put("tags", tags);
+        
+        try {
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(200)
+                    .withBody(new ObjectMapper().writeValueAsString(result));
+        } catch (JsonProcessingException e) {
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(500)
+                    .withBody("Error processing tags");
+        }
+    }
+}
+```
+
+2. 記事作成・更新時のタグ処理:
+```java
+private void processArticleTags(String articleId, List<String> tags) {
+    // 既存のタグを削除（更新の場合）
+    QueryRequest queryRequest = QueryRequest.builder()
+            .tableName(TAGS_TABLE_NAME)
+            .keyConditionExpression("articleId = :articleId")
+            .expressionAttributeValues(Map.of(":articleId", AttributeValue.builder().s(articleId).build()))
+            .build();
+    
+    QueryResponse existingTags = dynamoDbClient.query(queryRequest);
+    
+    // バッチ削除リクエストの作成
+    List<WriteRequest> deleteRequests = existingTags.items().stream()
+            .map(item -> WriteRequest.builder()
+                    .deleteRequest(DeleteRequest.builder()
+                            .key(Map.of(
+                                    "tagName", item.get("tagName"),
+                                    "articleId", item.get("articleId")
+                            ))
+                            .build())
+                    .build())
+            .collect(Collectors.toList());
+    
+    // 新しいタグを追加
+    List<WriteRequest> putRequests = tags.stream()
+            .map(tag -> WriteRequest.builder()
+                    .putRequest(PutRequest.builder()
+                            .item(Map.of(
+                                    "tagName", AttributeValue.builder().s(tag).build(),
+                                    "articleId", AttributeValue.builder().s(articleId).build(),
+                                    "createdAt", AttributeValue.builder().s(Instant.now().toString()).build()
+                            ))
+                            .build())
+                    .build())
+            .collect(Collectors.toList());
+    
+    // バッチ書き込みリクエストの実行
+    if (!deleteRequests.isEmpty()) {
+        BatchWriteItemRequest batchDeleteRequest = BatchWriteItemRequest.builder()
+                .requestItems(Map.of(TAGS_TABLE_NAME, deleteRequests))
+                .build();
+        dynamoDbClient.batchWriteItem(batchDeleteRequest);
+    }
+    
+    if (!putRequests.isEmpty()) {
+        BatchWriteItemRequest batchPutRequest = BatchWriteItemRequest.builder()
+                .requestItems(Map.of(TAGS_TABLE_NAME, putRequests))
+                .build();
+        dynamoDbClient.batchWriteItem(batchPutRequest);
+    }
+}
+```
+
+3. API Gateway との統合:
+```typescript
+const tagHandler = new lambda.Function(this, 'TagHandler', {
+  runtime: lambda.Runtime.JAVA_21,
+  code: lambda.Code.fromAsset('../target/tag-handler.jar'),
+  handler: 'com.realworld.TagHandler::handleRequest',
+  environment: {
+    TAGS_TABLE_NAME: tagsTable.tableName
+  },
+  timeout: cdk.Duration.seconds(30)
+});
+
+tagsTable.grantReadWriteData(tagHandler);
+
+tagsResource.addMethod('GET', new apigateway.LambdaIntegration(tagHandler));
+```
+
+# Test Strategy:
+1. タグ取得エンドポイントのユニットテスト
+2. 記事作成・更新時のタグ処理ロジックのユニットテスト
+3. DynamoDB との統合テスト（モックを使用）
+4. バッチ処理のエラーハンドリングテスト
+5. 大量のタグがある場合のパフォーマンステスト
+6. API Gateway を通じたエンドツーエンドテスト
+7. タグの重複処理のテスト
+
+# Subtasks:
+## 1. Implement Tag Retrieval Endpoint [pending]
+### Dependencies: None
+### Description: Create an API endpoint for retrieving and searching tags with proper filtering capabilities
+### Details:
+Develop a RESTful endpoint that allows retrieving tags by various criteria (name, popularity, recent usage). Include pagination support for large tag collections. Implement search functionality with partial matching. Ensure proper error handling and response formatting. Document the API endpoint thoroughly for frontend integration.
+
+## 2. Implement Tag Processing for Article Operations [pending]
+### Dependencies: 9.1
+### Description: Develop the logic to handle tags during article creation and update processes
+### Details:
+Create functions to extract, validate and normalize tags from article content. Implement logic to associate tags with articles in the database. Develop mechanisms to handle tag updates when articles are modified. Ensure proper error handling for invalid tags. Add validation to prevent duplicate tags on the same article. Document the tag processing workflow.
+
+## 3. Develop Batch Operations for Tag Management [pending]
+### Dependencies: 9.1, 9.2
+### Description: Create efficient batch operations for managing multiple tags simultaneously
+### Details:
+Implement batch creation of multiple tags in a single request. Develop functionality for bulk updating of tag properties. Create endpoints for batch deletion with proper validation. Implement transaction handling to ensure data consistency. Add performance optimizations for handling large batches. Document the batch API endpoints and provide usage examples.
+

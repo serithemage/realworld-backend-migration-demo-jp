@@ -1,0 +1,165 @@
+# Task ID: 10
+# Title: コメント管理サービスの実装
+# Status: pending
+# Dependencies: 2, 7
+# Priority: medium
+# Description: 記事へのコメントの追加、取得、削除機能を処理する Lambda 関数を実装します。
+# Details:
+1. コメント管理 Lambda 関数の実装:
+```java
+public class CommentHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();
+    private final String COMMENTS_TABLE_NAME = System.getenv("COMMENTS_TABLE_NAME");
+    private final String ARTICLES_TABLE_NAME = System.getenv("ARTICLES_TABLE_NAME");
+    
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+        String path = input.getPath();
+        String httpMethod = input.getHttpMethod();
+        
+        if (path.matches("/api/articles/[^/]+/comments") && httpMethod.equals("GET")) {
+            return getComments(input);
+        } else if (path.matches("/api/articles/[^/]+/comments") && httpMethod.equals("POST")) {
+            return addComment(input);
+        } else if (path.matches("/api/articles/[^/]+/comments/[^/]+") && httpMethod.equals("DELETE")) {
+            return deleteComment(input);
+        }
+        
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withBody("Not Found");
+    }
+    
+    private APIGatewayProxyResponseEvent getComments(APIGatewayProxyRequestEvent input) {
+        // 記事のコメント一覧を取得するロジックを実装
+        String slug = extractSlugFromPath(input.getPath());
+        
+        // 記事の存在確認
+        if (!articleExists(slug)) {
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(404)
+                    .withBody("Article not found");
+        }
+        
+        // コメントの取得
+        QueryRequest queryRequest = QueryRequest.builder()
+                .tableName(COMMENTS_TABLE_NAME)
+                .keyConditionExpression("articleId = :articleId")
+                .expressionAttributeValues(Map.of(":articleId", AttributeValue.builder().s(slug).build()))
+                .build();
+        
+        QueryResponse response = dynamoDbClient.query(queryRequest);
+        
+        // レスポンスの処理
+        // ...
+    }
+    
+    private APIGatewayProxyResponseEvent addComment(APIGatewayProxyRequestEvent input) {
+        // コメント追加ロジックを実装
+    }
+    
+    private APIGatewayProxyResponseEvent deleteComment(APIGatewayProxyRequestEvent input) {
+        // コメント削除ロジックを実装
+    }
+    
+    private String extractSlugFromPath(String path) {
+        // パスから記事のスラグを抽出するロジック
+        Pattern pattern = Pattern.compile("/api/articles/([^/]+)/comments");
+        Matcher matcher = pattern.matcher(path);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+    
+    private String extractCommentIdFromPath(String path) {
+        // パスからコメントIDを抽出するロジック
+        Pattern pattern = Pattern.compile("/api/articles/[^/]+/comments/([^/]+)");
+        Matcher matcher = pattern.matcher(path);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+    
+    private boolean articleExists(String slug) {
+        // 記事の存在確認ロジック
+        GetItemRequest getItemRequest = GetItemRequest.builder()
+                .tableName(ARTICLES_TABLE_NAME)
+                .key(Map.of("slug", AttributeValue.builder().s(slug).build()))
+                .build();
+        
+        try {
+            GetItemResponse response = dynamoDbClient.getItem(getItemRequest);
+            return !response.item().isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+}
+```
+
+2. API Gateway との統合:
+```typescript
+const commentHandler = new lambda.Function(this, 'CommentHandler', {
+  runtime: lambda.Runtime.JAVA_21,
+  code: lambda.Code.fromAsset('../target/comment-handler.jar'),
+  handler: 'com.realworld.CommentHandler::handleRequest',
+  environment: {
+    COMMENTS_TABLE_NAME: commentsTable.tableName,
+    ARTICLES_TABLE_NAME: articlesTable.tableName
+  },
+  timeout: cdk.Duration.seconds(30)
+});
+
+commentsTable.grantReadWriteData(commentHandler);
+articlesTable.grantReadData(commentHandler);
+
+const commentsResource = articleResource.addResource('comments');
+commentsResource.addMethod('GET', new apigateway.LambdaIntegration(commentHandler));
+commentsResource.addMethod('POST', new apigateway.LambdaIntegration(commentHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+
+const commentResource = commentsResource.addResource('{id}');
+commentResource.addMethod('DELETE', new apigateway.LambdaIntegration(commentHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+```
+
+# Test Strategy:
+1. コメントの取得、追加、削除の各エンドポイントのユニットテスト
+2. DynamoDB との統合テスト（モックを使用）
+3. パス解析ロジックのテスト（スラグとコメントIDの抽出）
+4. 記事の存在確認ロジックのテスト
+5. API Gateway を通じたエンドツーエンドテスト
+6. 認証と認可のテスト（コメントの作成者のみが削除可能など）
+7. エラーケースのテスト（存在しない記事、無効な入力など）
+
+# Subtasks:
+## 1. Implement Comment Retrieval for Articles [pending]
+### Dependencies: None
+### Description: Develop the functionality to fetch and return all comments associated with a specific article. Ensure efficient querying and support for pagination if necessary.
+### Details:
+This subtask involves designing the API endpoint and database queries to retrieve comments for a given article. Consider performance optimizations such as indexing and lazy loading for scalability.
+
+## 2. Implement Comment Creation with Validation [pending]
+### Dependencies: 10.1
+### Description: Create the logic for adding new comments to articles, including input validation (e.g., content length, required fields) and user authentication checks.
+### Details:
+This subtask covers the API endpoint for comment submission, validating the request body, and ensuring only authenticated users can post comments. Handle error responses for invalid input.
+
+## 3. Implement Comment Deletion with Permission Checking [pending]
+### Dependencies: 10.2
+### Description: Develop the ability to delete comments, ensuring that only authorized users (e.g., comment owners or admins) can perform deletions.
+### Details:
+This subtask includes permission checks, deletion logic, and appropriate error handling for unauthorized attempts. Update the database and return suitable responses.
+
+## 4. Implement Path Parsing and Article Existence Validation [pending]
+### Dependencies: 10.1, 10.2, 10.3
+### Description: Add logic to parse incoming request paths to extract article and comment identifiers, and validate that the referenced article exists before performing comment operations.
+### Details:
+This subtask ensures robust request handling by verifying article existence and correctly extracting IDs from request paths. Return errors for invalid or non-existent articles.
+

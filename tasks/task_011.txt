@@ -1,0 +1,179 @@
+# Task ID: 11
+# Title: お気に入り機能の実装
+# Status: pending
+# Dependencies: 2, 7
+# Priority: medium
+# Description: 記事のお気に入り登録・解除機能を処理する Lambda 関数を実装します。
+# Details:
+1. お気に入り管理 Lambda 関数の実装:
+```java
+public class FavoriteHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();
+    private final String FAVORITES_TABLE_NAME = System.getenv("FAVORITES_TABLE_NAME");
+    private final String ARTICLES_TABLE_NAME = System.getenv("ARTICLES_TABLE_NAME");
+    
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+        String path = input.getPath();
+        String httpMethod = input.getHttpMethod();
+        
+        if (path.matches("/api/articles/[^/]+/favorite") && httpMethod.equals("POST")) {
+            return favoriteArticle(input);
+        } else if (path.matches("/api/articles/[^/]+/favorite") && httpMethod.equals("DELETE")) {
+            return unfavoriteArticle(input);
+        }
+        
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withBody("Not Found");
+    }
+    
+    private APIGatewayProxyResponseEvent favoriteArticle(APIGatewayProxyRequestEvent input) {
+        // お気に入り登録ロジックを実装
+        String slug = extractSlugFromPath(input.getPath());
+        String userId = getUserIdFromToken(input);
+        
+        // 記事の存在確認
+        if (!articleExists(slug)) {
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(404)
+                    .withBody("Article not found");
+        }
+        
+        // お気に入り登録
+        PutItemRequest putItemRequest = PutItemRequest.builder()
+                .tableName(FAVORITES_TABLE_NAME)
+                .item(Map.of(
+                        "userId", AttributeValue.builder().s(userId).build(),
+                        "articleId", AttributeValue.builder().s(slug).build(),
+                        "createdAt", AttributeValue.builder().s(Instant.now().toString()).build()
+                ))
+                .build();
+        
+        dynamoDbClient.putItem(putItemRequest);
+        
+        // 記事のお気に入り数を更新
+        updateArticleFavoritesCount(slug, 1);
+        
+        // 更新された記事情報を返す
+        return getArticleWithFavorited(slug, userId);
+    }
+    
+    private APIGatewayProxyResponseEvent unfavoriteArticle(APIGatewayProxyRequestEvent input) {
+        // お気に入り解除ロジックを実装
+        String slug = extractSlugFromPath(input.getPath());
+        String userId = getUserIdFromToken(input);
+        
+        // 記事の存在確認
+        if (!articleExists(slug)) {
+            return new APIGatewayProxyResponseEvent()
+                    .withStatusCode(404)
+                    .withBody("Article not found");
+        }
+        
+        // お気に入り解除
+        DeleteItemRequest deleteItemRequest = DeleteItemRequest.builder()
+                .tableName(FAVORITES_TABLE_NAME)
+                .key(Map.of(
+                        "userId", AttributeValue.builder().s(userId).build(),
+                        "articleId", AttributeValue.builder().s(slug).build()
+                ))
+                .build();
+        
+        dynamoDbClient.deleteItem(deleteItemRequest);
+        
+        // 記事のお気に入り数を更新
+        updateArticleFavoritesCount(slug, -1);
+        
+        // 更新された記事情報を返す
+        return getArticleWithFavorited(slug, userId);
+    }
+    
+    private String extractSlugFromPath(String path) {
+        // パスから記事のスラグを抽出するロジック
+        Pattern pattern = Pattern.compile("/api/articles/([^/]+)/favorite");
+        Matcher matcher = pattern.matcher(path);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+    
+    private String getUserIdFromToken(APIGatewayProxyRequestEvent input) {
+        // トークンからユーザーIDを取得するロジック
+        // ...
+    }
+    
+    private boolean articleExists(String slug) {
+        // 記事の存在確認ロジック
+        // ...
+    }
+    
+    private void updateArticleFavoritesCount(String slug, int delta) {
+        // 記事のお気に入り数を更新するロジック
+        // ...
+    }
+    
+    private APIGatewayProxyResponseEvent getArticleWithFavorited(String slug, String userId) {
+        // お気に入り状態を含む記事情報を取得するロジック
+        // ...
+    }
+}
+```
+
+2. API Gateway との統合:
+```typescript
+const favoriteHandler = new lambda.Function(this, 'FavoriteHandler', {
+  runtime: lambda.Runtime.JAVA_21,
+  code: lambda.Code.fromAsset('../target/favorite-handler.jar'),
+  handler: 'com.realworld.FavoriteHandler::handleRequest',
+  environment: {
+    FAVORITES_TABLE_NAME: favoritesTable.tableName,
+    ARTICLES_TABLE_NAME: articlesTable.tableName
+  },
+  timeout: cdk.Duration.seconds(30)
+});
+
+favoritesTable.grantReadWriteData(favoriteHandler);
+articlesTable.grantReadWriteData(favoriteHandler);
+
+const favoriteResource = articleResource.addResource('favorite');
+favoriteResource.addMethod('POST', new apigateway.LambdaIntegration(favoriteHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+favoriteResource.addMethod('DELETE', new apigateway.LambdaIntegration(favoriteHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+```
+
+# Test Strategy:
+1. お気に入り登録・解除の各エンドポイントのユニットテスト
+2. DynamoDB との統合テスト（モックを使用）
+3. 記事のお気に入り数更新ロジックのテスト
+4. パス解析ロジックのテスト（スラグの抽出）
+5. API Gateway を通じたエンドツーエンドテスト
+6. 認証と認可のテスト
+7. エラーケースのテスト（存在しない記事、二重登録など）
+8. トランザクション処理のテスト（お気に入り登録と記事更新の整合性）
+
+# Subtasks:
+## 1. Implement Favorite/Unfavorite Article Functionality [pending]
+### Dependencies: None
+### Description: Create the core functionality to allow users to favorite and unfavorite articles
+### Details:
+Develop a toggle mechanism that allows users to mark articles as favorites by clicking an icon (typically a star or bookmark) next to the article title. This should include creating the data structure to store user-article relationships, implementing the UI component for the favorite icon, and handling the state changes when a user clicks the icon. Limit users to favoriting up to 50 articles as per standard practice.
+
+## 2. Implement Article Favorites Count Updating Logic [pending]
+### Dependencies: 11.1
+### Description: Create a system to track and update the count of favorites for each article
+### Details:
+Develop the backend logic to increment or decrement the favorites count when users favorite or unfavorite an article. This includes creating a counter field in the article data model, implementing atomic update operations to prevent race conditions, and ensuring the count is updated in real-time across the application. Consider implementing batch processing for high-traffic scenarios.
+
+## 3. Implement Retrieval of Articles with Favorited Status [pending]
+### Dependencies: 11.1, 11.2
+### Description: Create functionality to fetch articles with their favorited status for the current user
+### Details:
+Develop an efficient query mechanism that retrieves articles along with information about whether they are favorited by the current user. This should include optimizing database queries to avoid N+1 problems, implementing caching strategies for frequently accessed favorite statuses, and creating API endpoints that return articles with their favorited status. Also implement a dedicated view where users can see all their favorited articles in one place.
+

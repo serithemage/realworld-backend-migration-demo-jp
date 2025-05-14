@@ -1,0 +1,205 @@
+# Task ID: 13
+# Title: キャッシュ層の実装（ElastiCache Redis）
+# Status: pending
+# Dependencies: 5, 6, 7, 9, 10, 11, 12
+# Priority: low
+# Description: 頻繁にアクセスされるデータのキャッシュ層を実装し、パフォーマンスを向上させます。
+# Details:
+1. ElastiCache Redis クラスターの設定:
+```typescript
+const cacheSubnetGroup = new elasticache.CfnSubnetGroup(this, 'CacheSubnetGroup', {
+  description: 'Subnet group for RealWorld ElastiCache',
+  subnetIds: vpc.privateSubnets.map(subnet => subnet.subnetId)
+});
+
+const redisSecurityGroup = new ec2.SecurityGroup(this, 'RedisSecurityGroup', {
+  vpc,
+  description: 'Security group for RealWorld ElastiCache Redis',
+  allowAllOutbound: true
+});
+
+// Lambda 関数からのアクセスを許可
+redisSecurityGroup.addIngressRule(
+  ec2.Peer.securityGroupId(lambdaSecurityGroup.securityGroupId),
+  ec2.Port.tcp(6379),
+  'Allow access from Lambda functions'
+);
+
+const redisCluster = new elasticache.CfnCacheCluster(this, 'RealWorldRedisCluster', {
+  cacheNodeType: 'cache.t3.micro',
+  engine: 'redis',
+  numCacheNodes: 1,
+  cacheSubnetGroupName: cacheSubnetGroup.ref,
+  vpcSecurityGroupIds: [redisSecurityGroup.securityGroupId],
+  autoMinorVersionUpgrade: true
+});
+```
+
+2. Redis クライアントの実装:
+```java
+public class RedisClient {
+    private static final String REDIS_HOST = System.getenv("REDIS_HOST");
+    private static final int REDIS_PORT = Integer.parseInt(System.getenv("REDIS_PORT"));
+    private static final int CACHE_TTL = 300; // 5分（秒単位）
+    
+    private static JedisPool jedisPool;
+    
+    static {
+        JedisPoolConfig poolConfig = new JedisPoolConfig();
+        poolConfig.setMaxTotal(50);
+        poolConfig.setMaxIdle(10);
+        poolConfig.setMinIdle(5);
+        jedisPool = new JedisPool(poolConfig, REDIS_HOST, REDIS_PORT);
+    }
+    
+    public static void set(String key, String value) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.setex(key, CACHE_TTL, value);
+        }
+    }
+    
+    public static String get(String key) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            return jedis.get(key);
+        }
+    }
+    
+    public static void delete(String key) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            jedis.del(key);
+        }
+    }
+    
+    public static void invalidatePattern(String pattern) {
+        try (Jedis jedis = jedisPool.getResource()) {
+            Set<String> keys = jedis.keys(pattern);
+            if (!keys.isEmpty()) {
+                jedis.del(keys.toArray(new String[0]));
+            }
+        }
+    }
+}
+```
+
+3. キャッシュ戦略の実装:
+```java
+// 記事取得時のキャッシュ処理
+private APIGatewayProxyResponseEvent getArticle(APIGatewayProxyRequestEvent input) {
+    String slug = extractSlugFromPath(input.getPath());
+    String cacheKey = "article:" + slug;
+    
+    // キャッシュから記事を取得
+    String cachedArticle = RedisClient.get(cacheKey);
+    if (cachedArticle != null) {
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(200)
+                .withBody(cachedArticle);
+    }
+    
+    // キャッシュにない場合は DynamoDB から取得
+    GetItemRequest getItemRequest = GetItemRequest.builder()
+            .tableName(ARTICLES_TABLE_NAME)
+            .key(Map.of("slug", AttributeValue.builder().s(slug).build()))
+            .build();
+    
+    GetItemResponse response = dynamoDbClient.getItem(getItemRequest);
+    
+    if (response.item().isEmpty()) {
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withBody("Article not found");
+    }
+    
+    // 記事データの整形
+    Map<String, Object> articleData = convertDynamoItemToArticle(response.item());
+    
+    try {
+        String articleJson = new ObjectMapper().writeValueAsString(articleData);
+        
+        // キャッシュに保存
+        RedisClient.set(cacheKey, articleJson);
+        
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(200)
+                .withBody(articleJson);
+    } catch (JsonProcessingException e) {
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(500)
+                .withBody("Error processing article");
+    }
+}
+
+// 記事更新時のキャッシュ無効化
+private APIGatewayProxyResponseEvent updateArticle(APIGatewayProxyRequestEvent input) {
+    String slug = extractSlugFromPath(input.getPath());
+    
+    // 記事更新ロジック
+    // ...
+    
+    // キャッシュの無効化
+    RedisClient.delete("article:" + slug);
+    RedisClient.invalidatePattern("articles:*"); // 記事リストのキャッシュも無効化
+    
+    // 更新された記事を返す
+    // ...
+}
+```
+
+4. Lambda 関数の環境変数設定:
+```typescript
+const articleHandler = new lambda.Function(this, 'ArticleHandler', {
+  // ...
+  environment: {
+    ARTICLES_TABLE_NAME: articlesTable.tableName,
+    REDIS_HOST: redisCluster.attrRedisEndpointAddress,
+    REDIS_PORT: redisCluster.attrRedisEndpointPort
+  },
+  vpc: vpc,
+  securityGroups: [lambdaSecurityGroup],
+  vpcSubnets: {
+    subnetType: ec2.SubnetType.PRIVATE_WITH_NAT
+  }
+});
+```
+
+# Test Strategy:
+1. Redis クライアントのユニットテスト（モックを使用）
+2. キャッシュヒット・ミスのシナリオテスト
+3. キャッシュ無効化ロジックのテスト
+4. TTL（有効期限）の動作確認
+5. 高負荷時のパフォーマンステスト（キャッシュあり・なしの比較）
+6. キャッシュ整合性のテスト（更新後のデータ反映）
+7. フェイルオーバーテスト（Redis 接続エラー時の動作）
+8. メモリ使用量のモニタリングテスト
+
+# Subtasks:
+## 1. ElastiCache Redis Cluster Setup and Security Configuration [pending]
+### Dependencies: None
+### Description: Provision an Amazon ElastiCache Redis cluster, configure node types, replication, and set up security groups, subnet groups, and IAM roles to restrict access.
+### Details:
+This includes selecting the appropriate Redis version, configuring parameter groups, enabling encryption in transit and at rest, and setting up access control lists (ACLs) for secure access.
+
+## 2. VPC Configuration for Lambda to Redis Connectivity [pending]
+### Dependencies: 13.1
+### Description: Configure the VPC, subnets, and security groups to allow AWS Lambda functions to securely connect to the ElastiCache Redis cluster.
+### Details:
+Ensure Lambda is attached to the correct VPC and subnets, update security group rules to allow inbound/outbound traffic between Lambda and Redis, and verify network connectivity.
+
+## 3. Redis Client Implementation with Connection Pooling [pending]
+### Dependencies: 13.2
+### Description: Integrate a Redis client library in the application, implement connection pooling, and configure pool size and timeout settings for optimal performance.
+### Details:
+Choose a Redis client that supports connection pooling (e.g., Lettuce or Jedis for Java), configure the pool to limit concurrent connections, and ensure thread safety and efficient resource usage.
+
+## 4. Cache Strategy Design for Different Data Types [pending]
+### Dependencies: 13.3
+### Description: Design and document caching strategies tailored to various data types (e.g., session data, frequently accessed objects, computed results), including TTL policies and cache key patterns.
+### Details:
+Define which data should be cached, appropriate expiration times, and cache key naming conventions to avoid collisions and ensure efficient retrieval.
+
+## 5. Cache Invalidation Patterns Implementation [pending]
+### Dependencies: 13.4
+### Description: Implement cache invalidation mechanisms such as time-based expiration, explicit deletion, and event-driven invalidation to maintain data consistency between cache and database.
+### Details:
+Choose and implement invalidation patterns (e.g., cache-aside, write-through, pub/sub for event-driven invalidation), and ensure the application logic properly handles cache misses and updates.
+

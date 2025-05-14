@@ -1,0 +1,136 @@
+# Task ID: 7
+# Title: 記事管理サービスの基本実装
+# Status: pending
+# Dependencies: 2, 4, 5
+# Priority: high
+# Description: 記事の作成、読取、更新、削除（CRUD）機能を処理する Lambda 関数を実装します。
+# Details:
+1. 記事管理 Lambda 関数の実装:
+```java
+public class ArticleHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();
+    private final String ARTICLES_TABLE_NAME = System.getenv("ARTICLES_TABLE_NAME");
+    
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+        String path = input.getPath();
+        String httpMethod = input.getHttpMethod();
+        
+        if (path.equals("/api/articles") && httpMethod.equals("GET")) {
+            return listArticles(input);
+        } else if (path.equals("/api/articles") && httpMethod.equals("POST")) {
+            return createArticle(input);
+        } else if (path.matches("/api/articles/[^/]+") && httpMethod.equals("GET")) {
+            return getArticle(input);
+        } else if (path.matches("/api/articles/[^/]+") && httpMethod.equals("PUT")) {
+            return updateArticle(input);
+        } else if (path.matches("/api/articles/[^/]+") && httpMethod.equals("DELETE")) {
+            return deleteArticle(input);
+        }
+        
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withBody("Not Found");
+    }
+    
+    private APIGatewayProxyResponseEvent listArticles(APIGatewayProxyRequestEvent input) {
+        // 記事一覧取得ロジックを実装
+    }
+    
+    private APIGatewayProxyResponseEvent createArticle(APIGatewayProxyRequestEvent input) {
+        // 記事作成ロジックを実装
+    }
+    
+    private APIGatewayProxyResponseEvent getArticle(APIGatewayProxyRequestEvent input) {
+        // 記事取得ロジックを実装
+    }
+    
+    private APIGatewayProxyResponseEvent updateArticle(APIGatewayProxyRequestEvent input) {
+        // 記事更新ロジックを実装
+    }
+    
+    private APIGatewayProxyResponseEvent deleteArticle(APIGatewayProxyRequestEvent input) {
+        // 記事削除ロジックを実装
+    }
+    
+    private String generateSlug(String title) {
+        // タイトルからスラグを生成するロジック
+        return title.toLowerCase()
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-") + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+}
+```
+
+2. API Gateway との統合:
+```typescript
+const articleHandler = new lambda.Function(this, 'ArticleHandler', {
+  runtime: lambda.Runtime.JAVA_21,
+  code: lambda.Code.fromAsset('../target/article-handler.jar'),
+  handler: 'com.realworld.ArticleHandler::handleRequest',
+  environment: {
+    ARTICLES_TABLE_NAME: articlesTable.tableName
+  },
+  timeout: cdk.Duration.seconds(30)
+});
+
+articlesTable.grantReadWriteData(articleHandler);
+
+articlesResource.addMethod('GET', new apigateway.LambdaIntegration(articleHandler));
+articlesResource.addMethod('POST', new apigateway.LambdaIntegration(articleHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+
+const articleResource = articlesResource.addResource('{slug}');
+articleResource.addMethod('GET', new apigateway.LambdaIntegration(articleHandler));
+articleResource.addMethod('PUT', new apigateway.LambdaIntegration(articleHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+articleResource.addMethod('DELETE', new apigateway.LambdaIntegration(articleHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+```
+
+# Test Strategy:
+1. 記事の作成、読取、更新、削除の各エンドポイントのユニットテスト
+2. DynamoDB との統合テスト（モックを使用）
+3. スラグ生成ロジックのテスト（一意性、特殊文字の処理）
+4. API Gateway を通じたエンドツーエンドテスト
+5. 認証と認可のテスト（記事の作成者のみが更新・削除可能など）
+6. エラーケースのテスト（存在しない記事、無効な入力など）
+7. パフォーマンステスト（大量の記事がある場合のリスト取得など）
+
+# Subtasks:
+## 1. Implement Article Creation with Validation [pending]
+### Dependencies: None
+### Description: Develop the article creation functionality with comprehensive validation and automatic slug generation
+### Details:
+Create a service that handles article submission, validates required fields (title, content, author), generates unique slugs based on the title, checks for duplicate slugs, and implements proper error handling. Include metadata validation for categories and tags.
+
+## 2. Build Article Retrieval and Listing System [pending]
+### Dependencies: 7.1
+### Description: Implement robust article retrieval by ID/slug and listing with filtering/pagination
+### Details:
+Develop endpoints for fetching individual articles by ID or slug with proper error handling for non-existent articles. Implement listing functionality with filtering options (by author, category, date range), sorting capabilities, and pagination to handle large result sets efficiently.
+
+## 3. Create Article Update Functionality with Permission Checking [pending]
+### Dependencies: 7.1, 7.2
+### Description: Implement secure article update operations with proper authorization checks
+### Details:
+Build update functionality that verifies user permissions before allowing modifications, handles partial updates, validates changed fields, updates timestamps, and maintains version history. Implement special handling for slug changes to prevent breaking existing links.
+
+## 4. Develop Article Deletion with Cascade Operations [pending]
+### Dependencies: 7.1, 7.2, 7.3
+### Description: Implement secure deletion functionality with proper cascade operations for related data
+### Details:
+Create deletion service that checks user permissions, implements soft deletion (marking as deleted rather than removing), handles cascade operations for comments and related content, and provides restoration capability for accidentally deleted articles.
+
+## 5. Integrate DynamoDB with Optimized Query Patterns [pending]
+### Dependencies: 7.1, 7.2, 7.3, 7.4
+### Description: Design and implement DynamoDB data models and access patterns for article management
+### Details:
+Design efficient DynamoDB table structure with appropriate partition and sort keys for article data. Implement query patterns for common operations (listing by author, category, date), create secondary indexes for efficient filtering, and implement batch operations for performance. Include proper error handling and retry logic for DynamoDB operations.
+

@@ -1,0 +1,73 @@
+# Task ID: 1
+# Title: AWS 環境のセットアップと基本インフラストラクチャの構築
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: AWS アカウントの設定、IAM ユーザーとロールの作成、VPC とセキュリティグループの設定、および基本的なインフラストラクチャのセットアップを行います。
+# Details:
+1. AWS アカウントの作成または既存アカウントの確認
+2. 以下の IAM ユーザーとロールを作成:
+   - 開発者用 IAM ユーザー（適切な権限を持つ）
+   - Lambda 実行ロール
+   - DynamoDB アクセスロール
+   - API Gateway ロール
+3. VPC の設定:
+   - プライベートサブネットとパブリックサブネットの作成
+   - セキュリティグループの設定
+   - NAT ゲートウェイの設定（必要に応じて）
+4. AWS CDK プロジェクトの初期化:
+```typescript
+mkdir realworld-serverless && cd realworld-serverless
+cdk init app --language=typescript
+```
+5. 基本的なスタック構造の定義:
+```typescript
+import * as cdk from 'aws-cdk-lib';
+import { Construct } from 'constructs';
+
+export class RealWorldServerlessStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    super(scope, id, props);
+    
+    // Infrastructure will be defined here
+  }
+}
+```
+
+# Test Strategy:
+1. AWS CLI を使用して、作成したリソースが正しく設定されていることを確認
+2. CDK Synth コマンドを実行して、生成された CloudFormation テンプレートを検証
+3. 小規模なデプロイメントテストを実行して、インフラストラクチャのプロビジョニングが正常に機能することを確認
+4. IAM ポリシーシミュレーターを使用して、作成したロールに適切な権限があることを検証
+
+# Subtasks:
+## 1. AWS Account Setup and IAM Configuration [pending]
+### Dependencies: None
+### Description: Create an AWS account, configure root user security, and set up IAM users, groups, and roles with appropriate permissions for environment management.
+### Details:
+This includes enabling MFA for the root account, creating IAM users for team members, assigning least-privilege policies, and setting up IAM roles for automation and deployment.
+
+## 2. VPC and Network Infrastructure Setup [pending]
+### Dependencies: 1.1
+### Description: Design and create a Virtual Private Cloud (VPC) with subnets, route tables, internet gateways, and NAT gateways as required for the environment.
+### Details:
+Plan IP address ranges, select availability zones, create public and private subnets, configure routing, and set up internet/NAT gateways for secure connectivity.[2][3][5]
+
+## 3. CDK Project Initialization and Basic Stack Structure [pending]
+### Dependencies: 1.2
+### Description: Initialize an AWS CDK project and define the basic stack structure for infrastructure as code deployment.
+### Details:
+Set up the CDK toolchain, bootstrap the environment, and create initial stack files to represent the VPC and foundational resources.
+
+## 4. Security Group and Access Control Configuration [pending]
+### Dependencies: 1.3
+### Description: Define and configure security groups, network ACLs, and other access controls to secure resources within the VPC.
+### Details:
+Implement security groups for EC2 instances, Lambda functions, and other services, ensuring only necessary ports and protocols are allowed. Configure NACLs for subnet-level security.
+
+## 5. Infrastructure Validation and Testing [pending]
+### Dependencies: 1.4
+### Description: Validate the deployed infrastructure and test connectivity, security, and access controls to ensure the environment meets requirements.
+### Details:
+Perform tests such as pinging between subnets, verifying internet access, checking IAM permissions, and confirming security group rules are enforced.
+

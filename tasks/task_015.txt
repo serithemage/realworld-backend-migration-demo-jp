@@ -1,0 +1,360 @@
+# Task ID: 15
+# Title: CI/CD パイプラインの構築
+# Status: pending
+# Dependencies: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
+# Priority: medium
+# Description: AWS CodePipeline を使用して、継続的インテグレーションと継続的デプロイメントのパイプラインを構築します。
+# Details:
+1. CodePipeline の設定:
+```typescript
+const sourceOutput = new codepipeline.Artifact();
+const buildOutput = new codepipeline.Artifact();
+
+const pipeline = new codepipeline.Pipeline(this, 'RealWorldPipeline', {
+  pipelineName: 'RealWorld-Serverless-Pipeline',
+  crossAccountKeys: false
+});
+
+// ソースステージ（GitHub からのソース取得）
+const sourceAction = new codepipeline_actions.GitHubSourceAction({
+  actionName: 'GitHub_Source',
+  owner: 'your-github-username',
+  repo: 'realworld-serverless',
+  branch: 'main',
+  oauthToken: cdk.SecretValue.secretsManager('github-token'),
+  output: sourceOutput
+});
+
+pipeline.addStage({
+  stageName: 'Source',
+  actions: [sourceAction]
+});
+
+// ビルドステージ（Maven/Gradle ビルドと単体テスト）
+const buildProject = new codebuild.PipelineProject(this, 'RealWorldBuild', {
+  environment: {
+    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3,
+    privileged: true
+  },
+  buildSpec: codebuild.BuildSpec.fromObject({
+    version: '0.2',
+    phases: {
+      install: {
+        'runtime-versions': {
+          java: 'corretto21'
+        }
+      },
+      pre_build: {
+        commands: [
+          'echo Logging in to Amazon ECR...',
+          'aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com'
+        ]
+      },
+      build: {
+        commands: [
+          'echo Build started on `date`',
+          'mvn clean package',
+          'echo Running tests...',
+          'mvn test'
+        ]
+      },
+      post_build: {
+        commands: [
+          'echo Build completed on `date`',
+          'mkdir -p dist',
+          'cp target/*.jar dist/',
+          'cp -r cdk dist/'
+        ]
+      }
+    },
+    artifacts: {
+      'base-directory': 'dist',
+      files: [
+        '**/*'
+      ]
+    }
+  })
+});
+
+const buildAction = new codepipeline_actions.CodeBuildAction({
+  actionName: 'Build',
+  project: buildProject,
+  input: sourceOutput,
+  outputs: [buildOutput]
+});
+
+pipeline.addStage({
+  stageName: 'Build',
+  actions: [buildAction]
+});
+
+// テストステージ（統合テスト）
+const testProject = new codebuild.PipelineProject(this, 'RealWorldTest', {
+  environment: {
+    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3
+  },
+  buildSpec: codebuild.BuildSpec.fromObject({
+    version: '0.2',
+    phases: {
+      install: {
+        'runtime-versions': {
+          java: 'corretto21',
+          nodejs: '16'
+        },
+        commands: [
+          'npm install -g newman'
+        ]
+      },
+      build: {
+        commands: [
+          'echo Running integration tests...',
+          'cd integration-tests',
+          'newman run RealWorld.postman_collection.json -e dev.postman_environment.json'
+        ]
+      }
+    }
+  })
+});
+
+const testAction = new codepipeline_actions.CodeBuildAction({
+  actionName: 'IntegrationTest',
+  project: testProject,
+  input: buildOutput
+});
+
+pipeline.addStage({
+  stageName: 'Test',
+  actions: [testAction]
+});
+
+// デプロイステージ（CDK デプロイ）
+const deployProject = new codebuild.PipelineProject(this, 'RealWorldDeploy', {
+  environment: {
+    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3,
+    privileged: true
+  },
+  buildSpec: codebuild.BuildSpec.fromObject({
+    version: '0.2',
+    phases: {
+      install: {
+        'runtime-versions': {
+          nodejs: '16'
+        },
+        commands: [
+          'cd cdk',
+          'npm install',
+          'npm install -g aws-cdk'
+        ]
+      },
+      build: {
+        commands: [
+          'echo Deploying to development environment...',
+          'cdk deploy --require-approval never'
+        ]
+      }
+    }
+  })
+});
+
+// デプロイプロジェクトに必要な権限を付与
+deployProject.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['cloudformation:*', 's3:*', 'iam:*', 'lambda:*', 'apigateway:*', 'dynamodb:*', 'cognito-idp:*'],
+  resources: ['*']
+}));
+
+const deployAction = new codepipeline_actions.CodeBuildAction({
+  actionName: 'Deploy',
+  project: deployProject,
+  input: buildOutput
+});
+
+pipeline.addStage({
+  stageName: 'Deploy',
+  actions: [deployAction]
+});
+```
+
+2. 環境分離の設定:
+```typescript
+// 環境変数を使用して異なる環境を設定
+const environment = this.node.tryGetContext('environment') || 'dev';
+
+const environmentConfig = {
+  dev: {
+    stackName: 'RealWorld-Dev',
+    lambdaMemory: 512,
+    logRetention: logs.RetentionDays.ONE_WEEK
+  },
+  staging: {
+    stackName: 'RealWorld-Staging',
+    lambdaMemory: 1024,
+    logRetention: logs.RetentionDays.TWO_WEEKS
+  },
+  prod: {
+    stackName: 'RealWorld-Prod',
+    lambdaMemory: 2048,
+    logRetention: logs.RetentionDays.ONE_MONTH
+  }
+}[environment];
+
+// 環境に応じた設定を適用
+const userHandler = new lambda.Function(this, 'UserHandler', {
+  runtime: lambda.Runtime.JAVA_21,
+  code: lambda.Code.fromAsset('../target/user-handler.jar'),
+  handler: 'com.realworld.UserHandler::handleRequest',
+  environment: {
+    USERS_TABLE_NAME: usersTable.tableName,
+    ENVIRONMENT: environment
+  },
+  memorySize: environmentConfig.lambdaMemory,
+  timeout: cdk.Duration.seconds(30),
+  logRetention: environmentConfig.logRetention
+});
+```
+
+3. 承認ステップの追加（本番環境デプロイ前）:
+```typescript
+// 本番環境へのデプロイ前に手動承認ステップを追加
+if (environment === 'prod') {
+  const approvalAction = new codepipeline_actions.ManualApprovalAction({
+    actionName: 'Approve',
+    runOrder: 1
+  });
+  
+  const prodDeployAction = new codepipeline_actions.CodeBuildAction({
+    actionName: 'Deploy',
+    project: deployProject,
+    input: buildOutput,
+    runOrder: 2
+  });
+  
+  pipeline.addStage({
+    stageName: 'Production',
+    actions: [approvalAction, prodDeployAction]
+  });
+} else {
+  const deployAction = new codepipeline_actions.CodeBuildAction({
+    actionName: 'Deploy',
+    project: deployProject,
+    input: buildOutput
+  });
+  
+  pipeline.addStage({
+    stageName: 'Deploy',
+    actions: [deployAction]
+  });
+}
+```
+
+4. テスト自動化の設定:
+```typescript
+// テスト用の Postman コレクションとテスト環境の設定
+const testProject = new codebuild.PipelineProject(this, 'RealWorldTest', {
+  environment: {
+    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3,
+    environmentVariables: {
+      API_ENDPOINT: {
+        value: api.url,
+        type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+      },
+      USER_POOL_ID: {
+        value: userPool.userPoolId,
+        type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+      },
+      CLIENT_ID: {
+        value: userPoolClient.userPoolClientId,
+        type: codebuild.BuildEnvironmentVariableType.PLAINTEXT
+      }
+    }
+  },
+  buildSpec: codebuild.BuildSpec.fromObject({
+    version: '0.2',
+    phases: {
+      install: {
+        'runtime-versions': {
+          nodejs: '16'
+        },
+        commands: [
+          'npm install -g newman',
+          'npm install -g postman-to-k6',
+          'npm install -g aws-api-gateway-cli-test'
+        ]
+      },
+      pre_build: {
+        commands: [
+          'echo Generating test environment...',
+          'node generate-test-env.js $API_ENDPOINT $USER_POOL_ID $CLIENT_ID > test-env.json'
+        ]
+      },
+      build: {
+        commands: [
+          'echo Running API tests...',
+          'newman run RealWorld.postman_collection.json -e test-env.json --reporters cli,junit,htmlextra --reporter-junit-export results/junit.xml --reporter-htmlextra-export results/report.html',
+          'echo Running load tests...',
+          'postman-to-k6 RealWorld.postman_collection.json -e test-env.json -o load-test.js',
+          'k6 run --vus 10 --duration 30s load-test.js'
+        ]
+      }
+    },
+    reports: {
+      JunitReports: {
+        files: [
+          'results/junit.xml'
+        ],
+        'base-directory': './',
+        'file-format': 'JUNITXML'
+      }
+    },
+    artifacts: {
+      'base-directory': './results',
+      files: [
+        'report.html',
+        'junit.xml'
+      ]
+    }
+  })
+});
+```
+
+# Test Strategy:
+1. パイプラインの各ステージの動作確認（ソース取得、ビルド、テスト、デプロイ）
+2. 異なる環境（開発、ステージング、本番）へのデプロイテスト
+3. 手動承認ステップの動作確認
+4. ビルド失敗時のロールバック動作の確認
+5. テスト自動化の確認（単体テスト、統合テスト、負荷テスト）
+6. アーティファクトの保存と取得のテスト
+7. パイプラインの通知設定のテスト（成功・失敗時の通知）
+8. クロスアカウントデプロイのテスト（必要に応じて）
+9. ブルー/グリーンデプロイメントのテスト（必要に応じて）
+
+# Subtasks:
+## 1. Set up AWS CodePipeline with source integration [pending]
+### Dependencies: None
+### Description: Create a CodePipeline and configure source code repository integration
+### Details:
+Create an AWS account and administrative user, install AWS CLI, create a pipeline from the console, and configure the source stage to connect to your code repository (GitHub, CodeCommit, etc.). Set up proper IAM permissions for CodePipeline to access your source repository.
+
+## 2. Configure build and test stage [pending]
+### Dependencies: 15.1
+### Description: Set up build process and initial testing in the pipeline
+### Details:
+Add a build stage to compile code and run unit tests. Configure CodeBuild with appropriate buildspec.yml file that defines build commands, test execution, and artifact generation. Ensure build artifacts are properly stored in S3 for subsequent stages.
+
+## 3. Implement environment-specific deployment configuration [pending]
+### Dependencies: 15.2
+### Description: Create deployment stages for different environments (dev, staging, production)
+### Details:
+Configure deployment actions for different environments using services like CloudFormation, ECS, or Elastic Beanstalk. Create environment-specific parameters and variables. Implement deployment strategies (blue/green, canary) appropriate for each environment.
+
+## 4. Set up approval workflow for production deployments [pending]
+### Dependencies: 15.3
+### Description: Implement manual approval gates before production deployment
+### Details:
+Add manual approval actions before the production deployment stage. Configure SNS notifications to alert approvers. Define approval timeout periods and rejection handling. Document approval policies and procedures for team members.
+
+## 5. Implement test automation with reporting [pending]
+### Dependencies: 15.3, 15.4
+### Description: Set up comprehensive automated testing and reporting mechanisms
+### Details:
+Configure integration, performance, and security testing stages. Implement test result collection and reporting. Set up automated notifications for test failures. Create dashboards for visualizing pipeline health and test coverage metrics.
+

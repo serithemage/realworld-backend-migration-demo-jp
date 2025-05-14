@@ -1,0 +1,847 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "AWS 環境のセットアップと基本インフラストラクチャの構築",
+      "description": "AWS アカウントの設定、IAM ユーザーとロールの作成、VPC とセキュリティグループの設定、および基本的なインフラストラクチャのセットアップを行います。",
+      "details": "1. AWS アカウントの作成または既存アカウントの確認\n2. 以下の IAM ユーザーとロールを作成:\n   - 開発者用 IAM ユーザー（適切な権限を持つ）\n   - Lambda 実行ロール\n   - DynamoDB アクセスロール\n   - API Gateway ロール\n3. VPC の設定:\n   - プライベートサブネットとパブリックサブネットの作成\n   - セキュリティグループの設定\n   - NAT ゲートウェイの設定（必要に応じて）\n4. AWS CDK プロジェクトの初期化:\n```typescript\nmkdir realworld-serverless && cd realworld-serverless\ncdk init app --language=typescript\n```\n5. 基本的なスタック構造の定義:\n```typescript\nimport * as cdk from 'aws-cdk-lib';\nimport { Construct } from 'constructs';\n\nexport class RealWorldServerlessStack extends cdk.Stack {\n  constructor(scope: Construct, id: string, props?: cdk.StackProps) {\n    super(scope, id, props);\n    \n    // Infrastructure will be defined here\n  }\n}\n```",
+      "testStrategy": "1. AWS CLI を使用して、作成したリソースが正しく設定されていることを確認\n2. CDK Synth コマンドを実行して、生成された CloudFormation テンプレートを検証\n3. 小規模なデプロイメントテストを実行して、インフラストラクチャのプロビジョニングが正常に機能することを確認\n4. IAM ポリシーシミュレーターを使用して、作成したロールに適切な権限があることを検証",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "AWS Account Setup and IAM Configuration",
+          "description": "Create an AWS account, configure root user security, and set up IAM users, groups, and roles with appropriate permissions for environment management.",
+          "dependencies": [],
+          "details": "This includes enabling MFA for the root account, creating IAM users for team members, assigning least-privilege policies, and setting up IAM roles for automation and deployment.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "VPC and Network Infrastructure Setup",
+          "description": "Design and create a Virtual Private Cloud (VPC) with subnets, route tables, internet gateways, and NAT gateways as required for the environment.",
+          "dependencies": [
+            1
+          ],
+          "details": "Plan IP address ranges, select availability zones, create public and private subnets, configure routing, and set up internet/NAT gateways for secure connectivity.[2][3][5]",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "CDK Project Initialization and Basic Stack Structure",
+          "description": "Initialize an AWS CDK project and define the basic stack structure for infrastructure as code deployment.",
+          "dependencies": [
+            2
+          ],
+          "details": "Set up the CDK toolchain, bootstrap the environment, and create initial stack files to represent the VPC and foundational resources.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Security Group and Access Control Configuration",
+          "description": "Define and configure security groups, network ACLs, and other access controls to secure resources within the VPC.",
+          "dependencies": [
+            3
+          ],
+          "details": "Implement security groups for EC2 instances, Lambda functions, and other services, ensuring only necessary ports and protocols are allowed. Configure NACLs for subnet-level security.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Infrastructure Validation and Testing",
+          "description": "Validate the deployed infrastructure and test connectivity, security, and access controls to ensure the environment meets requirements.",
+          "dependencies": [
+            4
+          ],
+          "details": "Perform tests such as pinging between subnets, verifying internet access, checking IAM permissions, and confirming security group rules are enforced.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "DynamoDB データモデルの設計と実装",
+      "description": "RealWorld アプリケーションのデータモデルを設計し、DynamoDB テーブルを作成します。JPA/SQL から NoSQL への移行戦略を実装します。",
+      "details": "1. 以下の DynamoDB テーブルを設計・作成:\n   - Users テーブル（パーティションキー: userId）\n   - Profiles テーブル（パーティションキー: userId）\n   - Articles テーブル（パーティションキー: slug, ソートキー: authorId）\n   - Comments テーブル（パーティションキー: articleId, ソートキー: commentId）\n   - Follows テーブル（パーティションキー: followerId, ソートキー: followeeId）\n   - Favorites テーブル（パーティションキー: userId, ソートキー: articleId）\n   - Tags テーブル（パーティションキー: tagName）\n\n2. GSI (Global Secondary Index) の設計:\n   - Articles テーブルに authorId-GSI を追加（著者による記事検索用）\n   - Articles テーブルに createdAt-GSI を追加（タイムライン表示用）\n\n3. CDK でのテーブル定義:\n```typescript\nconst usersTable = new dynamodb.Table(this, 'UsersTable', {\n  partitionKey: { name: 'userId', type: dynamodb.AttributeType.STRING },\n  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,\n  removalPolicy: cdk.RemovalPolicy.RETAIN,\n  pointInTimeRecovery: true\n});\n\nconst articlesTable = new dynamodb.Table(this, 'ArticlesTable', {\n  partitionKey: { name: 'slug', type: dynamodb.AttributeType.STRING },\n  sortKey: { name: 'authorId', type: dynamodb.AttributeType.STRING },\n  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,\n  removalPolicy: cdk.RemovalPolicy.RETAIN,\n  pointInTimeRecovery: true\n});\n\narticlesTable.addGlobalSecondaryIndex({\n  indexName: 'authorId-index',\n  partitionKey: { name: 'authorId', type: dynamodb.AttributeType.STRING },\n  sortKey: { name: 'createdAt', type: dynamodb.AttributeType.STRING },\n  projectionType: dynamodb.ProjectionType.ALL\n});\n```\n\n4. データアクセスパターンの文書化と検証",
+      "testStrategy": "1. AWS CLI または AWS Management Console を使用して、テーブルが正しく作成されたことを確認\n2. サンプルデータを使用して、各テーブルへの基本的な CRUD 操作をテスト\n3. 主要なアクセスパターンに対するクエリのパフォーマンステスト\n4. NoSQL Workbench を使用したデータモデルの検証\n5. DynamoDB Local を使用したローカル開発環境でのテスト",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "User and Profile Table Design",
+          "description": "Design the User and Profile table structure with appropriate partition and sort keys",
+          "dependencies": [],
+          "details": "Create a data model for User and Profile entities considering denormalization strategies. Define primary keys that ensure uniqueness and avoid hot keys. Document attribute structure with shorter attribute names to reduce item size. Consider compression strategies for larger profile attributes or storing them in S3.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Article and Comment Table Design",
+          "description": "Design the Article and Comment table structure with appropriate indexes for efficient querying",
+          "dependencies": [
+            1
+          ],
+          "details": "Model Article and Comment entities with consideration for access patterns like retrieving all comments for an article. Define primary keys and indexes that support efficient queries. Consider storing large article content in S3 if needed. Plan for uniform distribution of reads/writes across partitions.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Relationship Tables Design",
+          "description": "Design tables for Follows and Favorites relationships with efficient query patterns",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Create data models for many-to-many relationships between users (Follows) and between users and articles (Favorites). Define appropriate partition and sort keys that support common access patterns like finding all followers of a user or all articles favorited by a user.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Tags Table Design",
+          "description": "Design the Tags table structure and its relationships with Articles",
+          "dependencies": [
+            2
+          ],
+          "details": "Create a data model for Tags and their relationships with Articles. Consider access patterns like finding all articles with a specific tag or all tags for an article. Design keys to ensure uniform distribution and avoid hot partitions.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "GSI Planning and Implementation",
+          "description": "Plan and design Global Secondary Indexes for all tables to support various access patterns",
+          "dependencies": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "details": "Identify and document all required access patterns. Design GSIs to support these patterns efficiently. Consider the trade-offs between storage costs and query efficiency. Ensure GSIs are designed to avoid hot keys and provide uniform distribution.",
+          "status": "pending"
+        },
+        {
+          "id": 6,
+          "title": "Access Pattern Documentation and Validation",
+          "description": "Document all access patterns and validate them against the designed data model",
+          "dependencies": [
+            5
+          ],
+          "details": "Create comprehensive documentation of all access patterns. Map each access pattern to specific table operations (Query, Scan, GetItem, etc.). Validate that each access pattern can be efficiently executed with the designed data model. Identify and resolve any inefficient patterns.",
+          "status": "pending"
+        },
+        {
+          "id": 7,
+          "title": "CDK Implementation of Tables",
+          "description": "Implement all designed tables using AWS CDK with proper configurations",
+          "dependencies": [
+            6
+          ],
+          "details": "Translate the data model designs into AWS CDK code. Configure appropriate provisioned throughput or on-demand capacity. Set up auto-scaling if using provisioned capacity. Implement proper TTL attributes if needed. Configure backup and recovery options. Implement best practices for batching operations where appropriate.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "認証サービスの実装（Amazon Cognito または Keycloak）",
+      "description": "ユーザー認証のための Amazon Cognito の設定、または既存の Keycloak を AWS に移行します。JWT 認証を実装し、認証 API エンドポイントを作成します。",
+      "details": "1. Amazon Cognito ユーザープールの設定:\n```typescript\nconst userPool = new cognito.UserPool(this, 'RealWorldUserPool', {\n  selfSignUpEnabled: true,\n  autoVerify: { email: true },\n  standardAttributes: {\n    email: { required: true, mutable: true },\n    username: { required: true, mutable: false }\n  },\n  customAttributes: {\n    bio: new cognito.StringAttribute({ mutable: true }),\n    image: new cognito.StringAttribute({ mutable: true })\n  },\n  passwordPolicy: {\n    minLength: 8,\n    requireLowercase: true,\n    requireUppercase: true,\n    requireDigits: true,\n    requireSymbols: false\n  },\n  accountRecovery: cognito.AccountRecovery.EMAIL_ONLY\n});\n\nconst userPoolClient = new cognito.UserPoolClient(this, 'RealWorldUserPoolClient', {\n  userPool,\n  authFlows: {\n    userPassword: true,\n    userSrp: true\n  },\n  generateSecret: false\n});\n```\n\n2. Keycloak を使用する場合の AWS 移行:\n   - EC2 または ECS 上に Keycloak をデプロイ\n   - RDS または Aurora Serverless をバックエンドデータベースとして設定\n   - ALB または API Gateway を使用してアクセスを提供\n\n3. JWT 認証の実装:\n   - Cognito JWT トークンの検証ロジックを実装\n   - API Gateway オーソライザーの設定\n\n4. 認証 Lambda 関数の実装:\n```java\npublic class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        // ユーザー認証ロジックを実装\n        // JWT トークンの生成と検証\n        // ユーザー登録とログイン処理\n    }\n}\n```",
+      "testStrategy": "1. Cognito ユーザープールに対するユーザー登録とログインのテスト\n2. JWT トークンの生成と検証のユニットテスト\n3. API Gateway オーソライザーの統合テスト\n4. Postman を使用した認証エンドポイントのテスト\n5. 異なる認証シナリオ（有効なトークン、無効なトークン、期限切れトークン）のテスト\n6. Keycloak を使用する場合は、Keycloak の設定とトークン検証のテスト",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Cognito User Pool Setup and Configuration",
+          "description": "Create and configure an Amazon Cognito user pool, including setting up app clients, domains, callback URLs, and attribute permissions.",
+          "dependencies": [],
+          "details": "Follow AWS documentation and tutorials to create a user pool, configure app clients (public/private), set callback URLs, and review advanced settings such as authentication flows and token expiration.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "User Registration and Login Flow Implementation",
+          "description": "Implement user registration and login flows using the configured Cognito user pool, ensuring proper handling of sign-up, confirmation, and sign-in processes.",
+          "dependencies": [
+            1
+          ],
+          "details": "Develop backend and/or frontend logic to interact with Cognito APIs for user registration, email/phone verification, and login. Ensure error handling and user feedback are in place.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "JWT Token Validation and Handling",
+          "description": "Implement secure handling and validation of JWT tokens issued by Cognito, including signature verification and claims extraction.",
+          "dependencies": [
+            2
+          ],
+          "details": "Integrate JWT libraries to validate tokens, check expiration, and extract user claims for authorization. Ensure tokens are securely stored and transmitted.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "API Gateway Authorizer Configuration",
+          "description": "Configure API Gateway to use Cognito user pool authorizer for securing API endpoints.",
+          "dependencies": [
+            3
+          ],
+          "details": "Set up API Gateway authorizer to validate incoming requests using Cognito JWT tokens. Map user claims to API access policies as needed.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Authentication API Endpoints Implementation",
+          "description": "Develop authentication-related API endpoints (e.g., login, refresh, logout) and ensure they are protected by the configured authorizer.",
+          "dependencies": [
+            4
+          ],
+          "details": "Implement endpoints for authentication flows, token refresh, and logout. Ensure endpoints are integrated with Cognito and protected by API Gateway authorizer.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "API Gateway のセットアップと基本エンドポイントの実装",
+      "description": "API Gateway を設定し、RealWorld API 仕様に基づいた基本的なエンドポイントを実装します。OpenAPI 仕様を使用して API を文書化します。",
+      "details": "1. REST API の作成:\n```typescript\nconst api = new apigateway.RestApi(this, 'RealWorldApi', {\n  restApiName: 'RealWorld API',\n  description: 'RealWorld backend API',\n  deployOptions: {\n    stageName: 'dev',\n    loggingLevel: apigateway.MethodLoggingLevel.INFO,\n    dataTraceEnabled: true\n  },\n  defaultCorsPreflightOptions: {\n    allowOrigins: apigateway.Cors.ALL_ORIGINS,\n    allowMethods: apigateway.Cors.ALL_METHODS,\n    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']\n  }\n});\n```\n\n2. API リソースの定義:\n```typescript\nconst usersResource = api.root.addResource('users');\nconst userResource = api.root.addResource('user');\nconst profilesResource = api.root.addResource('profiles');\nconst articlesResource = api.root.addResource('articles');\nconst tagsResource = api.root.addResource('tags');\n```\n\n3. Cognito オーソライザーの設定:\n```typescript\nconst authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'RealWorldAuthorizer', {\n  cognitoUserPools: [userPool]\n});\n```\n\n4. 基本的なエンドポイントの実装:\n   - POST /api/users (登録)\n   - POST /api/users/login (ログイン)\n   - GET /api/user (現在のユーザー)\n   - GET /api/tags (タグリスト)\n\n5. OpenAPI 仕様の作成と API Gateway へのインポート",
+      "testStrategy": "1. Postman コレクションを作成して API エンドポイントをテスト\n2. API Gateway コンソールからテストリクエストを実行\n3. CORS 設定のテスト（ブラウザからのリクエスト）\n4. 認証が必要なエンドポイントと認証が不要なエンドポイントの動作確認\n5. エラーレスポンスのテスト（400, 401, 403, 404, 500）\n6. API Gateway ステージ変数とデプロイメントのテスト",
+      "priority": "high",
+      "dependencies": [
+        1,
+        3
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Create REST API and Configure Basic Settings",
+          "description": "Set up the initial REST API in AWS API Gateway and configure basic settings",
+          "dependencies": [],
+          "details": "Log into AWS Management Console and navigate to API Gateway. Create a new REST API by selecting 'Create API' and 'REST API' option. Configure API name, description, endpoint type, and enable CORS if needed. Set up appropriate API Gateway stages (dev, test, prod) and configure stage variables if required.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Define Resources and Methods for Core Endpoints",
+          "description": "Create the resource hierarchy and configure HTTP methods for each endpoint",
+          "dependencies": [
+            1
+          ],
+          "details": "Using the Actions dropdown, create resources to define your API structure. For each resource, create appropriate HTTP methods (GET, POST, PUT, DELETE) as needed. Configure request parameters, request body models, and response models for each method. Set up integrations with backend services (Lambda, HTTP, or Mock) and configure request/response transformations if necessary.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Integrate Cognito Authorizer and Configure Permissions",
+          "description": "Set up Cognito User Pool authorizer and configure method-level permissions",
+          "dependencies": [
+            2
+          ],
+          "details": "Create a Cognito User Pool if not already available. In API Gateway, create a new authorizer linked to the Cognito User Pool. Apply the authorizer to the appropriate methods that require authentication. Configure authorization scopes if using OAuth2. Test the authorization flow to ensure proper access control. Set up IAM roles and policies for API Gateway to interact with other AWS services.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Create OpenAPI Specification and Documentation",
+          "description": "Generate and enhance OpenAPI specification for API documentation",
+          "dependencies": [
+            3
+          ],
+          "details": "Export the API as an OpenAPI (formerly Swagger) specification from API Gateway. Enhance the exported specification with detailed descriptions, examples, and schema definitions. Set up API Gateway documentation using the OpenAPI specification. Configure SDK generation options if client SDKs are needed. Validate the OpenAPI specification using available tools to ensure compliance with standards.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "ユーザー管理サービスの実装",
+      "description": "ユーザー登録、ログイン、ユーザー情報の取得と更新を処理する Lambda 関数を実装します。",
+      "details": "1. ユーザー管理 Lambda 関数の実装:\n```java\npublic class UserHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();\n    private final String TABLE_NAME = System.getenv(\"USERS_TABLE_NAME\");\n    \n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        String path = input.getPath();\n        String httpMethod = input.getHttpMethod();\n        \n        if (path.equals(\"/api/users\") && httpMethod.equals(\"POST\")) {\n            return registerUser(input);\n        } else if (path.equals(\"/api/users/login\") && httpMethod.equals(\"POST\")) {\n            return loginUser(input);\n        } else if (path.equals(\"/api/user\") && httpMethod.equals(\"GET\")) {\n            return getCurrentUser(input);\n        } else if (path.equals(\"/api/user\") && httpMethod.equals(\"PUT\")) {\n            return updateUser(input);\n        }\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Not Found\");\n    }\n    \n    private APIGatewayProxyResponseEvent registerUser(APIGatewayProxyRequestEvent input) {\n        // ユーザー登録ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent loginUser(APIGatewayProxyRequestEvent input) {\n        // ログインロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent getCurrentUser(APIGatewayProxyRequestEvent input) {\n        // 現在のユーザー情報取得ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent updateUser(APIGatewayProxyRequestEvent input) {\n        // ユーザー情報更新ロジックを実装\n    }\n}\n```\n\n2. API Gateway との統合:\n```typescript\nconst userHandler = new lambda.Function(this, 'UserHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/user-handler.jar'),\n  handler: 'com.realworld.UserHandler::handleRequest',\n  environment: {\n    USERS_TABLE_NAME: usersTable.tableName\n  },\n  timeout: cdk.Duration.seconds(30)\n});\n\nusersTable.grantReadWriteData(userHandler);\n\nusersResource.addMethod('POST', new apigateway.LambdaIntegration(userHandler));\nusersResource.addResource('login').addMethod('POST', new apigateway.LambdaIntegration(userHandler));\nuserResource.addMethod('GET', new apigateway.LambdaIntegration(userHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\nuserResource.addMethod('PUT', new apigateway.LambdaIntegration(userHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n```",
+      "testStrategy": "1. ユーザー登録、ログイン、情報取得、更新の各エンドポイントのユニットテスト\n2. DynamoDB との統合テスト（モックを使用）\n3. Cognito との統合テスト（モックを使用）\n4. API Gateway を通じたエンドツーエンドテスト\n5. エラーケースのテスト（無効な入力、重複ユーザー、認証エラーなど）\n6. パフォーマンステスト（レスポンスタイム、スループット）",
+      "priority": "high",
+      "dependencies": [
+        2,
+        3,
+        4
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement User Registration and Validation Logic",
+          "description": "Create the user registration flow with proper input validation and error handling",
+          "dependencies": [],
+          "details": "Develop the registration endpoint that validates user inputs (email, password, profile information), implements password strength requirements, handles duplicate account prevention, integrates with Cognito for user creation, stores additional user metadata in DynamoDB, and implements proper error handling for all potential failure scenarios.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Develop Login and Authentication Flow",
+          "description": "Implement secure authentication mechanisms with proper session management",
+          "dependencies": [
+            1
+          ],
+          "details": "Create authentication endpoints that verify user credentials against Cognito, implement JWT token generation and validation, add refresh token functionality, integrate multi-factor authentication if required, implement proper session timeout handling, and add comprehensive logging for security events.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Build User Profile Functionality",
+          "description": "Create endpoints for retrieving and updating user profile information",
+          "dependencies": [
+            2
+          ],
+          "details": "Develop API endpoints to fetch user profiles from DynamoDB, implement profile update functionality with proper validation, add profile picture upload and management, ensure proper authorization checks for profile access, and implement versioning for profile changes.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Integrate AWS Services and Security Best Practices",
+          "description": "Ensure proper integration with DynamoDB and Cognito following AWS security best practices",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Implement least privilege IAM roles for service access, set up proper error handling for AWS service failures, implement connection pooling for DynamoDB, add caching strategies for frequently accessed user data, ensure proper encryption for sensitive data at rest and in transit, and add comprehensive monitoring and alerting for the user management service.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "プロフィール管理サービスの実装",
+      "description": "ユーザープロフィールの表示、更新、およびフォロー機能を処理する Lambda 関数を実装します。",
+      "details": "1. プロフィール管理 Lambda 関数の実装:\n```java\npublic class ProfileHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();\n    private final String PROFILES_TABLE_NAME = System.getenv(\"PROFILES_TABLE_NAME\");\n    private final String FOLLOWS_TABLE_NAME = System.getenv(\"FOLLOWS_TABLE_NAME\");\n    \n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        String path = input.getPath();\n        String httpMethod = input.getHttpMethod();\n        \n        if (path.matches(\"/api/profiles/[^/]+\") && httpMethod.equals(\"GET\")) {\n            return getProfile(input);\n        } else if (path.matches(\"/api/profiles/[^/]+/follow\") && httpMethod.equals(\"POST\")) {\n            return followUser(input);\n        } else if (path.matches(\"/api/profiles/[^/]+/follow\") && httpMethod.equals(\"DELETE\")) {\n            return unfollowUser(input);\n        }\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Not Found\");\n    }\n    \n    private APIGatewayProxyResponseEvent getProfile(APIGatewayProxyRequestEvent input) {\n        // プロフィール取得ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent followUser(APIGatewayProxyRequestEvent input) {\n        // フォローロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent unfollowUser(APIGatewayProxyRequestEvent input) {\n        // フォロー解除ロジックを実装\n    }\n}\n```\n\n2. API Gateway との統合:\n```typescript\nconst profileHandler = new lambda.Function(this, 'ProfileHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/profile-handler.jar'),\n  handler: 'com.realworld.ProfileHandler::handleRequest',\n  environment: {\n    PROFILES_TABLE_NAME: profilesTable.tableName,\n    FOLLOWS_TABLE_NAME: followsTable.tableName\n  },\n  timeout: cdk.Duration.seconds(30)\n});\n\nprofilesTable.grantReadWriteData(profileHandler);\nfollowsTable.grantReadWriteData(profileHandler);\n\nconst usernameResource = profilesResource.addResource('{username}');\nusernameResource.addMethod('GET', new apigateway.LambdaIntegration(profileHandler));\n\nconst followResource = usernameResource.addResource('follow');\nfollowResource.addMethod('POST', new apigateway.LambdaIntegration(profileHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\nfollowResource.addMethod('DELETE', new apigateway.LambdaIntegration(profileHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n```\n\n3. S3 バケットの設定（プロフィール画像用）:\n```typescript\nconst profileImagesBucket = new s3.Bucket(this, 'ProfileImagesBucket', {\n  removalPolicy: cdk.RemovalPolicy.RETAIN,\n  cors: [\n    {\n      allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.PUT],\n      allowedOrigins: ['*'],\n      allowedHeaders: ['*']\n    }\n  ]\n});\n\nprofileImagesBucket.grantReadWrite(profileHandler);\n```",
+      "testStrategy": "1. プロフィール取得、フォロー、フォロー解除の各エンドポイントのユニットテスト\n2. DynamoDB との統合テスト（モックを使用）\n3. S3 との統合テスト（プロフィール画像のアップロードとURL生成）\n4. API Gateway を通じたエンドツーエンドテスト\n5. 認証と認可のテスト（認証されていないユーザー、認証されたユーザー）\n6. エラーケースのテスト（存在しないユーザー、自分自身をフォローするなど）",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        4,
+        5
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Profile Retrieval Functionality",
+          "description": "Develop the service logic to retrieve user profile data, including basic information and profile details, from the data store.",
+          "dependencies": [],
+          "details": "This includes designing API endpoints for fetching user profiles and ensuring efficient data access patterns.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Implement Follow/Unfollow User Functionality",
+          "description": "Add the ability for users to follow or unfollow other users, updating the relevant relationships in the data store.",
+          "dependencies": [
+            1
+          ],
+          "details": "This involves creating endpoints and logic to manage follow relationships, ensuring data consistency and proper error handling.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Integrate S3 for Profile Image Storage",
+          "description": "Set up integration with Amazon S3 to handle uploading, storing, and retrieving user profile images.",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement logic for image upload, secure access, and linking image URLs to user profiles.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Integrate DynamoDB for Profile and Follow Data",
+          "description": "Configure and implement DynamoDB tables and access patterns for storing user profiles and follow relationships.",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Design table schemas, implement data access logic, and ensure atomic updates for profile and follow/unfollow operations.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "記事管理サービスの基本実装",
+      "description": "記事の作成、読取、更新、削除（CRUD）機能を処理する Lambda 関数を実装します。",
+      "details": "1. 記事管理 Lambda 関数の実装:\n```java\npublic class ArticleHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();\n    private final String ARTICLES_TABLE_NAME = System.getenv(\"ARTICLES_TABLE_NAME\");\n    \n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        String path = input.getPath();\n        String httpMethod = input.getHttpMethod();\n        \n        if (path.equals(\"/api/articles\") && httpMethod.equals(\"GET\")) {\n            return listArticles(input);\n        } else if (path.equals(\"/api/articles\") && httpMethod.equals(\"POST\")) {\n            return createArticle(input);\n        } else if (path.matches(\"/api/articles/[^/]+\") && httpMethod.equals(\"GET\")) {\n            return getArticle(input);\n        } else if (path.matches(\"/api/articles/[^/]+\") && httpMethod.equals(\"PUT\")) {\n            return updateArticle(input);\n        } else if (path.matches(\"/api/articles/[^/]+\") && httpMethod.equals(\"DELETE\")) {\n            return deleteArticle(input);\n        }\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Not Found\");\n    }\n    \n    private APIGatewayProxyResponseEvent listArticles(APIGatewayProxyRequestEvent input) {\n        // 記事一覧取得ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent createArticle(APIGatewayProxyRequestEvent input) {\n        // 記事作成ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent getArticle(APIGatewayProxyRequestEvent input) {\n        // 記事取得ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent updateArticle(APIGatewayProxyRequestEvent input) {\n        // 記事更新ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent deleteArticle(APIGatewayProxyRequestEvent input) {\n        // 記事削除ロジックを実装\n    }\n    \n    private String generateSlug(String title) {\n        // タイトルからスラグを生成するロジック\n        return title.toLowerCase()\n                .replaceAll(\"[^a-z0-9\\\\s-]\", \"\")\n                .replaceAll(\"\\\\s+\", \"-\") + \"-\" + UUID.randomUUID().toString().substring(0, 8);\n    }\n}\n```\n\n2. API Gateway との統合:\n```typescript\nconst articleHandler = new lambda.Function(this, 'ArticleHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/article-handler.jar'),\n  handler: 'com.realworld.ArticleHandler::handleRequest',\n  environment: {\n    ARTICLES_TABLE_NAME: articlesTable.tableName\n  },\n  timeout: cdk.Duration.seconds(30)\n});\n\narticlesTable.grantReadWriteData(articleHandler);\n\narticlesResource.addMethod('GET', new apigateway.LambdaIntegration(articleHandler));\narticlesResource.addMethod('POST', new apigateway.LambdaIntegration(articleHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n\nconst articleResource = articlesResource.addResource('{slug}');\narticleResource.addMethod('GET', new apigateway.LambdaIntegration(articleHandler));\narticleResource.addMethod('PUT', new apigateway.LambdaIntegration(articleHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\narticleResource.addMethod('DELETE', new apigateway.LambdaIntegration(articleHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n```",
+      "testStrategy": "1. 記事の作成、読取、更新、削除の各エンドポイントのユニットテスト\n2. DynamoDB との統合テスト（モックを使用）\n3. スラグ生成ロジックのテスト（一意性、特殊文字の処理）\n4. API Gateway を通じたエンドツーエンドテスト\n5. 認証と認可のテスト（記事の作成者のみが更新・削除可能など）\n6. エラーケースのテスト（存在しない記事、無効な入力など）\n7. パフォーマンステスト（大量の記事がある場合のリスト取得など）",
+      "priority": "high",
+      "dependencies": [
+        2,
+        4,
+        5
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Article Creation with Validation",
+          "description": "Develop the article creation functionality with comprehensive validation and automatic slug generation",
+          "dependencies": [],
+          "details": "Create a service that handles article submission, validates required fields (title, content, author), generates unique slugs based on the title, checks for duplicate slugs, and implements proper error handling. Include metadata validation for categories and tags.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Build Article Retrieval and Listing System",
+          "description": "Implement robust article retrieval by ID/slug and listing with filtering/pagination",
+          "dependencies": [
+            1
+          ],
+          "details": "Develop endpoints for fetching individual articles by ID or slug with proper error handling for non-existent articles. Implement listing functionality with filtering options (by author, category, date range), sorting capabilities, and pagination to handle large result sets efficiently.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Create Article Update Functionality with Permission Checking",
+          "description": "Implement secure article update operations with proper authorization checks",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Build update functionality that verifies user permissions before allowing modifications, handles partial updates, validates changed fields, updates timestamps, and maintains version history. Implement special handling for slug changes to prevent breaking existing links.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Develop Article Deletion with Cascade Operations",
+          "description": "Implement secure deletion functionality with proper cascade operations for related data",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Create deletion service that checks user permissions, implements soft deletion (marking as deleted rather than removing), handles cascade operations for comments and related content, and provides restoration capability for accidentally deleted articles.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Integrate DynamoDB with Optimized Query Patterns",
+          "description": "Design and implement DynamoDB data models and access patterns for article management",
+          "dependencies": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "details": "Design efficient DynamoDB table structure with appropriate partition and sort keys for article data. Implement query patterns for common operations (listing by author, category, date), create secondary indexes for efficient filtering, and implement batch operations for performance. Include proper error handling and retry logic for DynamoDB operations.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "記事検索とフィルタリング機能の実装",
+      "description": "タグ、著者、お気に入りによる記事の検索とフィルタリング機能を実装します。",
+      "details": "1. 記事検索 Lambda 関数の拡張:\n```java\nprivate APIGatewayProxyResponseEvent listArticles(APIGatewayProxyRequestEvent input) {\n    Map<String, String> queryParams = input.getQueryStringParameters();\n    if (queryParams == null) {\n        queryParams = new HashMap<>();\n    }\n    \n    String tag = queryParams.get(\"tag\");\n    String author = queryParams.get(\"author\");\n    String favorited = queryParams.get(\"favorited\");\n    String limit = queryParams.getOrDefault(\"limit\", \"20\");\n    String offset = queryParams.getOrDefault(\"offset\", \"0\");\n    \n    // タグによるフィルタリング\n    if (tag != null && !tag.isEmpty()) {\n        return filterArticlesByTag(tag, Integer.parseInt(limit), Integer.parseInt(offset));\n    }\n    \n    // 著者によるフィルタリング\n    if (author != null && !author.isEmpty()) {\n        return filterArticlesByAuthor(author, Integer.parseInt(limit), Integer.parseInt(offset));\n    }\n    \n    // お気に入りによるフィルタリング\n    if (favorited != null && !favorited.isEmpty()) {\n        return filterArticlesByFavorited(favorited, Integer.parseInt(limit), Integer.parseInt(offset));\n    }\n    \n    // デフォルトの記事リスト取得\n    return getDefaultArticlesList(Integer.parseInt(limit), Integer.parseInt(offset));\n}\n\nprivate APIGatewayProxyResponseEvent filterArticlesByTag(String tag, int limit, int offset) {\n    // タグによる記事フィルタリングロジックを実装\n}\n\nprivate APIGatewayProxyResponseEvent filterArticlesByAuthor(String author, int limit, int offset) {\n    // 著者による記事フィルタリングロジックを実装\n}\n\nprivate APIGatewayProxyResponseEvent filterArticlesByFavorited(String favorited, int limit, int offset) {\n    // お気に入りによる記事フィルタリングロジックを実装\n}\n\nprivate APIGatewayProxyResponseEvent getDefaultArticlesList(int limit, int offset) {\n    // デフォルトの記事リスト取得ロジックを実装\n}\n```\n\n2. DynamoDB クエリの最適化:\n```java\nprivate List<Article> queryArticlesByTag(String tag, int limit, int offset) {\n    // タグテーブルからタグに関連する記事IDを取得\n    QueryRequest queryRequest = QueryRequest.builder()\n            .tableName(TAGS_TABLE_NAME)\n            .keyConditionExpression(\"tagName = :tagName\")\n            .expressionAttributeValues(Map.of(\":tagName\", AttributeValue.builder().s(tag).build()))\n            .build();\n    \n    QueryResponse response = dynamoDbClient.query(queryRequest);\n    \n    // 取得した記事IDを使用して記事の詳細情報を取得\n    // ...\n}\n\nprivate List<Article> queryArticlesByAuthor(String author, int limit, int offset) {\n    // GSIを使用して著者による記事検索\n    QueryRequest queryRequest = QueryRequest.builder()\n            .tableName(ARTICLES_TABLE_NAME)\n            .indexName(\"authorId-index\")\n            .keyConditionExpression(\"authorId = :authorId\")\n            .expressionAttributeValues(Map.of(\":authorId\", AttributeValue.builder().s(author).build()))\n            .limit(limit)\n            .build();\n    \n    QueryResponse response = dynamoDbClient.query(queryRequest);\n    \n    // レスポンスの処理\n    // ...\n}\n```",
+      "testStrategy": "1. 各フィルタリングオプション（タグ、著者、お気に入り）のユニットテスト\n2. 複数のフィルタリング条件を組み合わせたテスト\n3. ページネーションのテスト（limit と offset パラメータ）\n4. DynamoDB GSI を使用したクエリのパフォーマンステスト\n5. 大量のデータがある場合のスケーラビリティテスト\n6. エッジケースのテスト（存在しないタグ、著者など）\n7. API Gateway を通じたエンドツーエンドテスト",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        7
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Tag-based filtering implementation",
+          "description": "Implement the adjacency list pattern for tag-based article filtering in DynamoDB",
+          "dependencies": [],
+          "details": "Design and implement a data structure using the adjacency list pattern where articles and tags are stored as separate items in the same table. Create composite sort keys with format 'tagValue#article#articleId' to enable efficient querying. Implement application logic to handle multiple tag filters by performing separate queries for each tag and finding the intersection of results.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Author-based filtering with GSI optimization",
+          "description": "Create and optimize a Global Secondary Index for author-based article filtering",
+          "dependencies": [],
+          "details": "Design a GSI with author information as the partition key and relevant article metadata as sort key. Implement query logic that efficiently retrieves articles by specific authors. Optimize the GSI structure to minimize data duplication and ensure fast query performance. Include attribute projections to reduce data transfer costs.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Favorites-based filtering implementation",
+          "description": "Develop a system to track and query user favorite articles",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Create a data structure to store user-article favorite relationships. Implement query mechanisms to retrieve a user's favorite articles efficiently. Design the system to handle the many-to-many relationship between users and articles they've favorited. Ensure the implementation works seamlessly with the existing tag and author filtering systems.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Pagination and sorting logic for all filter types",
+          "description": "Implement consistent pagination and sorting across all filtering mechanisms",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Develop a unified pagination system that works across tag, author, and favorites filtering. Implement efficient LastEvaluatedKey handling for DynamoDB pagination. Create sorting options (by date, popularity, etc.) that work consistently across all filter types. Optimize the application layer logic to handle pagination when combining multiple filter criteria.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "タグ管理サービスの実装",
+      "description": "記事のタグ機能と、タグリストを取得するためのエンドポイントを実装します。",
+      "details": "1. タグ管理 Lambda 関数の実装:\n```java\npublic class TagHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();\n    private final String TAGS_TABLE_NAME = System.getenv(\"TAGS_TABLE_NAME\");\n    \n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        String path = input.getPath();\n        String httpMethod = input.getHttpMethod();\n        \n        if (path.equals(\"/api/tags\") && httpMethod.equals(\"GET\")) {\n            return getTags();\n        }\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Not Found\");\n    }\n    \n    private APIGatewayProxyResponseEvent getTags() {\n        // すべてのタグを取得するロジックを実装\n        ScanRequest scanRequest = ScanRequest.builder()\n                .tableName(TAGS_TABLE_NAME)\n                .build();\n        \n        ScanResponse response = dynamoDbClient.scan(scanRequest);\n        \n        List<String> tags = response.items().stream()\n                .map(item -> item.get(\"tagName\").s())\n                .collect(Collectors.toList());\n        \n        Map<String, List<String>> result = new HashMap<>();\n        result.put(\"tags\", tags);\n        \n        try {\n            return new APIGatewayProxyResponseEvent()\n                    .withStatusCode(200)\n                    .withBody(new ObjectMapper().writeValueAsString(result));\n        } catch (JsonProcessingException e) {\n            return new APIGatewayProxyResponseEvent()\n                    .withStatusCode(500)\n                    .withBody(\"Error processing tags\");\n        }\n    }\n}\n```\n\n2. 記事作成・更新時のタグ処理:\n```java\nprivate void processArticleTags(String articleId, List<String> tags) {\n    // 既存のタグを削除（更新の場合）\n    QueryRequest queryRequest = QueryRequest.builder()\n            .tableName(TAGS_TABLE_NAME)\n            .keyConditionExpression(\"articleId = :articleId\")\n            .expressionAttributeValues(Map.of(\":articleId\", AttributeValue.builder().s(articleId).build()))\n            .build();\n    \n    QueryResponse existingTags = dynamoDbClient.query(queryRequest);\n    \n    // バッチ削除リクエストの作成\n    List<WriteRequest> deleteRequests = existingTags.items().stream()\n            .map(item -> WriteRequest.builder()\n                    .deleteRequest(DeleteRequest.builder()\n                            .key(Map.of(\n                                    \"tagName\", item.get(\"tagName\"),\n                                    \"articleId\", item.get(\"articleId\")\n                            ))\n                            .build())\n                    .build())\n            .collect(Collectors.toList());\n    \n    // 新しいタグを追加\n    List<WriteRequest> putRequests = tags.stream()\n            .map(tag -> WriteRequest.builder()\n                    .putRequest(PutRequest.builder()\n                            .item(Map.of(\n                                    \"tagName\", AttributeValue.builder().s(tag).build(),\n                                    \"articleId\", AttributeValue.builder().s(articleId).build(),\n                                    \"createdAt\", AttributeValue.builder().s(Instant.now().toString()).build()\n                            ))\n                            .build())\n                    .build())\n            .collect(Collectors.toList());\n    \n    // バッチ書き込みリクエストの実行\n    if (!deleteRequests.isEmpty()) {\n        BatchWriteItemRequest batchDeleteRequest = BatchWriteItemRequest.builder()\n                .requestItems(Map.of(TAGS_TABLE_NAME, deleteRequests))\n                .build();\n        dynamoDbClient.batchWriteItem(batchDeleteRequest);\n    }\n    \n    if (!putRequests.isEmpty()) {\n        BatchWriteItemRequest batchPutRequest = BatchWriteItemRequest.builder()\n                .requestItems(Map.of(TAGS_TABLE_NAME, putRequests))\n                .build();\n        dynamoDbClient.batchWriteItem(batchPutRequest);\n    }\n}\n```\n\n3. API Gateway との統合:\n```typescript\nconst tagHandler = new lambda.Function(this, 'TagHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/tag-handler.jar'),\n  handler: 'com.realworld.TagHandler::handleRequest',\n  environment: {\n    TAGS_TABLE_NAME: tagsTable.tableName\n  },\n  timeout: cdk.Duration.seconds(30)\n});\n\ntagsTable.grantReadWriteData(tagHandler);\n\ntagsResource.addMethod('GET', new apigateway.LambdaIntegration(tagHandler));\n```",
+      "testStrategy": "1. タグ取得エンドポイントのユニットテスト\n2. 記事作成・更新時のタグ処理ロジックのユニットテスト\n3. DynamoDB との統合テスト（モックを使用）\n4. バッチ処理のエラーハンドリングテスト\n5. 大量のタグがある場合のパフォーマンステスト\n6. API Gateway を通じたエンドツーエンドテスト\n7. タグの重複処理のテスト",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        7
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Tag Retrieval Endpoint",
+          "description": "Create an API endpoint for retrieving and searching tags with proper filtering capabilities",
+          "dependencies": [],
+          "details": "Develop a RESTful endpoint that allows retrieving tags by various criteria (name, popularity, recent usage). Include pagination support for large tag collections. Implement search functionality with partial matching. Ensure proper error handling and response formatting. Document the API endpoint thoroughly for frontend integration.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Implement Tag Processing for Article Operations",
+          "description": "Develop the logic to handle tags during article creation and update processes",
+          "dependencies": [
+            1
+          ],
+          "details": "Create functions to extract, validate and normalize tags from article content. Implement logic to associate tags with articles in the database. Develop mechanisms to handle tag updates when articles are modified. Ensure proper error handling for invalid tags. Add validation to prevent duplicate tags on the same article. Document the tag processing workflow.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Develop Batch Operations for Tag Management",
+          "description": "Create efficient batch operations for managing multiple tags simultaneously",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implement batch creation of multiple tags in a single request. Develop functionality for bulk updating of tag properties. Create endpoints for batch deletion with proper validation. Implement transaction handling to ensure data consistency. Add performance optimizations for handling large batches. Document the batch API endpoints and provide usage examples.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "コメント管理サービスの実装",
+      "description": "記事へのコメントの追加、取得、削除機能を処理する Lambda 関数を実装します。",
+      "details": "1. コメント管理 Lambda 関数の実装:\n```java\npublic class CommentHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();\n    private final String COMMENTS_TABLE_NAME = System.getenv(\"COMMENTS_TABLE_NAME\");\n    private final String ARTICLES_TABLE_NAME = System.getenv(\"ARTICLES_TABLE_NAME\");\n    \n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        String path = input.getPath();\n        String httpMethod = input.getHttpMethod();\n        \n        if (path.matches(\"/api/articles/[^/]+/comments\") && httpMethod.equals(\"GET\")) {\n            return getComments(input);\n        } else if (path.matches(\"/api/articles/[^/]+/comments\") && httpMethod.equals(\"POST\")) {\n            return addComment(input);\n        } else if (path.matches(\"/api/articles/[^/]+/comments/[^/]+\") && httpMethod.equals(\"DELETE\")) {\n            return deleteComment(input);\n        }\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Not Found\");\n    }\n    \n    private APIGatewayProxyResponseEvent getComments(APIGatewayProxyRequestEvent input) {\n        // 記事のコメント一覧を取得するロジックを実装\n        String slug = extractSlugFromPath(input.getPath());\n        \n        // 記事の存在確認\n        if (!articleExists(slug)) {\n            return new APIGatewayProxyResponseEvent()\n                    .withStatusCode(404)\n                    .withBody(\"Article not found\");\n        }\n        \n        // コメントの取得\n        QueryRequest queryRequest = QueryRequest.builder()\n                .tableName(COMMENTS_TABLE_NAME)\n                .keyConditionExpression(\"articleId = :articleId\")\n                .expressionAttributeValues(Map.of(\":articleId\", AttributeValue.builder().s(slug).build()))\n                .build();\n        \n        QueryResponse response = dynamoDbClient.query(queryRequest);\n        \n        // レスポンスの処理\n        // ...\n    }\n    \n    private APIGatewayProxyResponseEvent addComment(APIGatewayProxyRequestEvent input) {\n        // コメント追加ロジックを実装\n    }\n    \n    private APIGatewayProxyResponseEvent deleteComment(APIGatewayProxyRequestEvent input) {\n        // コメント削除ロジックを実装\n    }\n    \n    private String extractSlugFromPath(String path) {\n        // パスから記事のスラグを抽出するロジック\n        Pattern pattern = Pattern.compile(\"/api/articles/([^/]+)/comments\");\n        Matcher matcher = pattern.matcher(path);\n        if (matcher.find()) {\n            return matcher.group(1);\n        }\n        return null;\n    }\n    \n    private String extractCommentIdFromPath(String path) {\n        // パスからコメントIDを抽出するロジック\n        Pattern pattern = Pattern.compile(\"/api/articles/[^/]+/comments/([^/]+)\");\n        Matcher matcher = pattern.matcher(path);\n        if (matcher.find()) {\n            return matcher.group(1);\n        }\n        return null;\n    }\n    \n    private boolean articleExists(String slug) {\n        // 記事の存在確認ロジック\n        GetItemRequest getItemRequest = GetItemRequest.builder()\n                .tableName(ARTICLES_TABLE_NAME)\n                .key(Map.of(\"slug\", AttributeValue.builder().s(slug).build()))\n                .build();\n        \n        try {\n            GetItemResponse response = dynamoDbClient.getItem(getItemRequest);\n            return !response.item().isEmpty();\n        } catch (Exception e) {\n            return false;\n        }\n    }\n}\n```\n\n2. API Gateway との統合:\n```typescript\nconst commentHandler = new lambda.Function(this, 'CommentHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/comment-handler.jar'),\n  handler: 'com.realworld.CommentHandler::handleRequest',\n  environment: {\n    COMMENTS_TABLE_NAME: commentsTable.tableName,\n    ARTICLES_TABLE_NAME: articlesTable.tableName\n  },\n  timeout: cdk.Duration.seconds(30)\n});\n\ncommentsTable.grantReadWriteData(commentHandler);\narticlesTable.grantReadData(commentHandler);\n\nconst commentsResource = articleResource.addResource('comments');\ncommentsResource.addMethod('GET', new apigateway.LambdaIntegration(commentHandler));\ncommentsResource.addMethod('POST', new apigateway.LambdaIntegration(commentHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n\nconst commentResource = commentsResource.addResource('{id}');\ncommentResource.addMethod('DELETE', new apigateway.LambdaIntegration(commentHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n```",
+      "testStrategy": "1. コメントの取得、追加、削除の各エンドポイントのユニットテスト\n2. DynamoDB との統合テスト（モックを使用）\n3. パス解析ロジックのテスト（スラグとコメントIDの抽出）\n4. 記事の存在確認ロジックのテスト\n5. API Gateway を通じたエンドツーエンドテスト\n6. 認証と認可のテスト（コメントの作成者のみが削除可能など）\n7. エラーケースのテスト（存在しない記事、無効な入力など）",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        7
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Comment Retrieval for Articles",
+          "description": "Develop the functionality to fetch and return all comments associated with a specific article. Ensure efficient querying and support for pagination if necessary.",
+          "dependencies": [],
+          "details": "This subtask involves designing the API endpoint and database queries to retrieve comments for a given article. Consider performance optimizations such as indexing and lazy loading for scalability.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Implement Comment Creation with Validation",
+          "description": "Create the logic for adding new comments to articles, including input validation (e.g., content length, required fields) and user authentication checks.",
+          "dependencies": [
+            1
+          ],
+          "details": "This subtask covers the API endpoint for comment submission, validating the request body, and ensuring only authenticated users can post comments. Handle error responses for invalid input.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Implement Comment Deletion with Permission Checking",
+          "description": "Develop the ability to delete comments, ensuring that only authorized users (e.g., comment owners or admins) can perform deletions.",
+          "dependencies": [
+            2
+          ],
+          "details": "This subtask includes permission checks, deletion logic, and appropriate error handling for unauthorized attempts. Update the database and return suitable responses.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Implement Path Parsing and Article Existence Validation",
+          "description": "Add logic to parse incoming request paths to extract article and comment identifiers, and validate that the referenced article exists before performing comment operations.",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "This subtask ensures robust request handling by verifying article existence and correctly extracting IDs from request paths. Return errors for invalid or non-existent articles.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "お気に入り機能の実装",
+      "description": "記事のお気に入り登録・解除機能を処理する Lambda 関数を実装します。",
+      "details": "1. お気に入り管理 Lambda 関数の実装:\n```java\npublic class FavoriteHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();\n    private final String FAVORITES_TABLE_NAME = System.getenv(\"FAVORITES_TABLE_NAME\");\n    private final String ARTICLES_TABLE_NAME = System.getenv(\"ARTICLES_TABLE_NAME\");\n    \n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        String path = input.getPath();\n        String httpMethod = input.getHttpMethod();\n        \n        if (path.matches(\"/api/articles/[^/]+/favorite\") && httpMethod.equals(\"POST\")) {\n            return favoriteArticle(input);\n        } else if (path.matches(\"/api/articles/[^/]+/favorite\") && httpMethod.equals(\"DELETE\")) {\n            return unfavoriteArticle(input);\n        }\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Not Found\");\n    }\n    \n    private APIGatewayProxyResponseEvent favoriteArticle(APIGatewayProxyRequestEvent input) {\n        // お気に入り登録ロジックを実装\n        String slug = extractSlugFromPath(input.getPath());\n        String userId = getUserIdFromToken(input);\n        \n        // 記事の存在確認\n        if (!articleExists(slug)) {\n            return new APIGatewayProxyResponseEvent()\n                    .withStatusCode(404)\n                    .withBody(\"Article not found\");\n        }\n        \n        // お気に入り登録\n        PutItemRequest putItemRequest = PutItemRequest.builder()\n                .tableName(FAVORITES_TABLE_NAME)\n                .item(Map.of(\n                        \"userId\", AttributeValue.builder().s(userId).build(),\n                        \"articleId\", AttributeValue.builder().s(slug).build(),\n                        \"createdAt\", AttributeValue.builder().s(Instant.now().toString()).build()\n                ))\n                .build();\n        \n        dynamoDbClient.putItem(putItemRequest);\n        \n        // 記事のお気に入り数を更新\n        updateArticleFavoritesCount(slug, 1);\n        \n        // 更新された記事情報を返す\n        return getArticleWithFavorited(slug, userId);\n    }\n    \n    private APIGatewayProxyResponseEvent unfavoriteArticle(APIGatewayProxyRequestEvent input) {\n        // お気に入り解除ロジックを実装\n        String slug = extractSlugFromPath(input.getPath());\n        String userId = getUserIdFromToken(input);\n        \n        // 記事の存在確認\n        if (!articleExists(slug)) {\n            return new APIGatewayProxyResponseEvent()\n                    .withStatusCode(404)\n                    .withBody(\"Article not found\");\n        }\n        \n        // お気に入り解除\n        DeleteItemRequest deleteItemRequest = DeleteItemRequest.builder()\n                .tableName(FAVORITES_TABLE_NAME)\n                .key(Map.of(\n                        \"userId\", AttributeValue.builder().s(userId).build(),\n                        \"articleId\", AttributeValue.builder().s(slug).build()\n                ))\n                .build();\n        \n        dynamoDbClient.deleteItem(deleteItemRequest);\n        \n        // 記事のお気に入り数を更新\n        updateArticleFavoritesCount(slug, -1);\n        \n        // 更新された記事情報を返す\n        return getArticleWithFavorited(slug, userId);\n    }\n    \n    private String extractSlugFromPath(String path) {\n        // パスから記事のスラグを抽出するロジック\n        Pattern pattern = Pattern.compile(\"/api/articles/([^/]+)/favorite\");\n        Matcher matcher = pattern.matcher(path);\n        if (matcher.find()) {\n            return matcher.group(1);\n        }\n        return null;\n    }\n    \n    private String getUserIdFromToken(APIGatewayProxyRequestEvent input) {\n        // トークンからユーザーIDを取得するロジック\n        // ...\n    }\n    \n    private boolean articleExists(String slug) {\n        // 記事の存在確認ロジック\n        // ...\n    }\n    \n    private void updateArticleFavoritesCount(String slug, int delta) {\n        // 記事のお気に入り数を更新するロジック\n        // ...\n    }\n    \n    private APIGatewayProxyResponseEvent getArticleWithFavorited(String slug, String userId) {\n        // お気に入り状態を含む記事情報を取得するロジック\n        // ...\n    }\n}\n```\n\n2. API Gateway との統合:\n```typescript\nconst favoriteHandler = new lambda.Function(this, 'FavoriteHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/favorite-handler.jar'),\n  handler: 'com.realworld.FavoriteHandler::handleRequest',\n  environment: {\n    FAVORITES_TABLE_NAME: favoritesTable.tableName,\n    ARTICLES_TABLE_NAME: articlesTable.tableName\n  },\n  timeout: cdk.Duration.seconds(30)\n});\n\nfavoritesTable.grantReadWriteData(favoriteHandler);\narticlesTable.grantReadWriteData(favoriteHandler);\n\nconst favoriteResource = articleResource.addResource('favorite');\nfavoriteResource.addMethod('POST', new apigateway.LambdaIntegration(favoriteHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\nfavoriteResource.addMethod('DELETE', new apigateway.LambdaIntegration(favoriteHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n```",
+      "testStrategy": "1. お気に入り登録・解除の各エンドポイントのユニットテスト\n2. DynamoDB との統合テスト（モックを使用）\n3. 記事のお気に入り数更新ロジックのテスト\n4. パス解析ロジックのテスト（スラグの抽出）\n5. API Gateway を通じたエンドツーエンドテスト\n6. 認証と認可のテスト\n7. エラーケースのテスト（存在しない記事、二重登録など）\n8. トランザクション処理のテスト（お気に入り登録と記事更新の整合性）",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        7
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Favorite/Unfavorite Article Functionality",
+          "description": "Create the core functionality to allow users to favorite and unfavorite articles",
+          "dependencies": [],
+          "details": "Develop a toggle mechanism that allows users to mark articles as favorites by clicking an icon (typically a star or bookmark) next to the article title. This should include creating the data structure to store user-article relationships, implementing the UI component for the favorite icon, and handling the state changes when a user clicks the icon. Limit users to favoriting up to 50 articles as per standard practice.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Implement Article Favorites Count Updating Logic",
+          "description": "Create a system to track and update the count of favorites for each article",
+          "dependencies": [
+            1
+          ],
+          "details": "Develop the backend logic to increment or decrement the favorites count when users favorite or unfavorite an article. This includes creating a counter field in the article data model, implementing atomic update operations to prevent race conditions, and ensuring the count is updated in real-time across the application. Consider implementing batch processing for high-traffic scenarios.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Implement Retrieval of Articles with Favorited Status",
+          "description": "Create functionality to fetch articles with their favorited status for the current user",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Develop an efficient query mechanism that retrieves articles along with information about whether they are favorited by the current user. This should include optimizing database queries to avoid N+1 problems, implementing caching strategies for frequently accessed favorite statuses, and creating API endpoints that return articles with their favorited status. Also implement a dedicated view where users can see all their favorited articles in one place.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "フィード機能の実装",
+      "description": "ユーザーがフォローしている著者の記事を表示するフィード機能を実装します。",
+      "details": "1. フィード Lambda 関数の実装:\n```java\npublic class FeedHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {\n    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();\n    private final String FOLLOWS_TABLE_NAME = System.getenv(\"FOLLOWS_TABLE_NAME\");\n    private final String ARTICLES_TABLE_NAME = System.getenv(\"ARTICLES_TABLE_NAME\");\n    \n    @Override\n    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {\n        String path = input.getPath();\n        String httpMethod = input.getHttpMethod();\n        \n        if (path.equals(\"/api/articles/feed\") && httpMethod.equals(\"GET\")) {\n            return getFeed(input);\n        }\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Not Found\");\n    }\n    \n    private APIGatewayProxyResponseEvent getFeed(APIGatewayProxyRequestEvent input) {\n        // フィード取得ロジックを実装\n        String userId = getUserIdFromToken(input);\n        Map<String, String> queryParams = input.getQueryStringParameters();\n        if (queryParams == null) {\n            queryParams = new HashMap<>();\n        }\n        \n        int limit = Integer.parseInt(queryParams.getOrDefault(\"limit\", \"20\"));\n        int offset = Integer.parseInt(queryParams.getOrDefault(\"offset\", \"0\"));\n        \n        // フォローしているユーザーのリストを取得\n        QueryRequest followsQuery = QueryRequest.builder()\n                .tableName(FOLLOWS_TABLE_NAME)\n                .keyConditionExpression(\"followerId = :followerId\")\n                .expressionAttributeValues(Map.of(\":followerId\", AttributeValue.builder().s(userId).build()))\n                .build();\n        \n        QueryResponse followsResponse = dynamoDbClient.query(followsQuery);\n        \n        List<String> followedUserIds = followsResponse.items().stream()\n                .map(item -> item.get(\"followeeId\").s())\n                .collect(Collectors.toList());\n        \n        if (followedUserIds.isEmpty()) {\n            // フォローしているユーザーがいない場合は空のリストを返す\n            Map<String, Object> result = new HashMap<>();\n            result.put(\"articles\", new ArrayList<>());\n            result.put(\"articlesCount\", 0);\n            \n            try {\n                return new APIGatewayProxyResponseEvent()\n                        .withStatusCode(200)\n                        .withBody(new ObjectMapper().writeValueAsString(result));\n            } catch (JsonProcessingException e) {\n                return new APIGatewayProxyResponseEvent()\n                        .withStatusCode(500)\n                        .withBody(\"Error processing feed\");\n            }\n        }\n        \n        // フォローしているユーザーの記事を取得\n        // DynamoDB では IN 句のような複数値の条件をサポートしていないため、\n        // 各ユーザーごとに個別にクエリを実行し、結果を結合する必要がある\n        List<Map<String, AttributeValue>> articles = new ArrayList<>();\n        \n        for (String followeeId : followedUserIds) {\n            QueryRequest articlesQuery = QueryRequest.builder()\n                    .tableName(ARTICLES_TABLE_NAME)\n                    .indexName(\"authorId-index\")\n                    .keyConditionExpression(\"authorId = :authorId\")\n                    .expressionAttributeValues(Map.of(\":authorId\", AttributeValue.builder().s(followeeId).build()))\n                    .build();\n            \n            QueryResponse articlesResponse = dynamoDbClient.query(articlesQuery);\n            articles.addAll(articlesResponse.items());\n        }\n        \n        // 作成日時でソート\n        articles.sort((a, b) -> {\n            String dateA = a.get(\"createdAt\").s();\n            String dateB = b.get(\"createdAt\").s();\n            return dateB.compareTo(dateA); // 降順（最新順）\n        });\n        \n        // ページネーション処理\n        int startIndex = Math.min(offset, articles.size());\n        int endIndex = Math.min(offset + limit, articles.size());\n        List<Map<String, AttributeValue>> paginatedArticles = articles.subList(startIndex, endIndex);\n        \n        // 記事データの整形と返却\n        // ...\n    }\n    \n    private String getUserIdFromToken(APIGatewayProxyRequestEvent input) {\n        // トークンからユーザーIDを取得するロジック\n        // ...\n    }\n}\n```\n\n2. API Gateway との統合:\n```typescript\nconst feedHandler = new lambda.Function(this, 'FeedHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/feed-handler.jar'),\n  handler: 'com.realworld.FeedHandler::handleRequest',\n  environment: {\n    FOLLOWS_TABLE_NAME: followsTable.tableName,\n    ARTICLES_TABLE_NAME: articlesTable.tableName\n  },\n  timeout: cdk.Duration.seconds(30)\n});\n\nfollowsTable.grantReadData(feedHandler);\narticlesTable.grantReadData(feedHandler);\n\narticlesResource.addResource('feed').addMethod('GET', new apigateway.LambdaIntegration(feedHandler), {\n  authorizer: authorizer,\n  authorizationType: apigateway.AuthorizationType.COGNITO\n});\n```",
+      "testStrategy": "1. フィードエンドポイントのユニットテスト\n2. DynamoDB との統合テスト（モックを使用）\n3. フォローしているユーザーの記事取得ロジックのテスト\n4. ページネーション処理のテスト（limit と offset パラメータ）\n5. ソートロジックのテスト（最新順）\n6. API Gateway を通じたエンドツーエンドテスト\n7. 認証と認可のテスト\n8. エッジケースのテスト（フォローしているユーザーがいない場合など）\n9. パフォーマンステスト（多数のフォローユーザーがいる場合）",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        6,
+        7
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Followed Users List Retrieval",
+          "description": "Create functionality to retrieve the list of users that the current user follows from DynamoDB",
+          "dependencies": [],
+          "details": "Use BatchGetItem API to efficiently retrieve followed users data. Implement error handling for cases where the user follows more than 100 users (DynamoDB BatchGetItem limit). Consider using a dedicated GSI for follows relationship to optimize query performance.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Implement Multi-Author Article Querying with GSI",
+          "description": "Develop functionality to query articles by multiple authors using a Global Secondary Index",
+          "dependencies": [
+            1
+          ],
+          "details": "Create a GSI with author as partition key and createdAt as sort key. Since DynamoDB doesn't support IN queries directly, implement multiple parallel queries (one per author) and merge results client-side. Use AttributesToGet parameter to minimize data transfer and improve performance.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Implement Sorting and Pagination Logic",
+          "description": "Create efficient sorting and pagination mechanisms for the feed",
+          "dependencies": [
+            2
+          ],
+          "details": "Implement client-side sorting of merged results by date. Create pagination using LastEvaluatedKey from DynamoDB responses. Handle edge cases where new articles are added during pagination. Implement cursor-based pagination to maintain consistency across page requests.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Implement Response Formatting with Favorited Status",
+          "description": "Format the feed response to include favorited status for each article",
+          "dependencies": [
+            3
+          ],
+          "details": "Query the favorites table to determine if current user has favorited each article. Use BatchGetItem to efficiently retrieve favorite status for multiple articles. Format the final response according to API specifications, including article metadata, author information, and favorited status.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "キャッシュ層の実装（ElastiCache Redis）",
+      "description": "頻繁にアクセスされるデータのキャッシュ層を実装し、パフォーマンスを向上させます。",
+      "details": "1. ElastiCache Redis クラスターの設定:\n```typescript\nconst cacheSubnetGroup = new elasticache.CfnSubnetGroup(this, 'CacheSubnetGroup', {\n  description: 'Subnet group for RealWorld ElastiCache',\n  subnetIds: vpc.privateSubnets.map(subnet => subnet.subnetId)\n});\n\nconst redisSecurityGroup = new ec2.SecurityGroup(this, 'RedisSecurityGroup', {\n  vpc,\n  description: 'Security group for RealWorld ElastiCache Redis',\n  allowAllOutbound: true\n});\n\n// Lambda 関数からのアクセスを許可\nredisSecurityGroup.addIngressRule(\n  ec2.Peer.securityGroupId(lambdaSecurityGroup.securityGroupId),\n  ec2.Port.tcp(6379),\n  'Allow access from Lambda functions'\n);\n\nconst redisCluster = new elasticache.CfnCacheCluster(this, 'RealWorldRedisCluster', {\n  cacheNodeType: 'cache.t3.micro',\n  engine: 'redis',\n  numCacheNodes: 1,\n  cacheSubnetGroupName: cacheSubnetGroup.ref,\n  vpcSecurityGroupIds: [redisSecurityGroup.securityGroupId],\n  autoMinorVersionUpgrade: true\n});\n```\n\n2. Redis クライアントの実装:\n```java\npublic class RedisClient {\n    private static final String REDIS_HOST = System.getenv(\"REDIS_HOST\");\n    private static final int REDIS_PORT = Integer.parseInt(System.getenv(\"REDIS_PORT\"));\n    private static final int CACHE_TTL = 300; // 5分（秒単位）\n    \n    private static JedisPool jedisPool;\n    \n    static {\n        JedisPoolConfig poolConfig = new JedisPoolConfig();\n        poolConfig.setMaxTotal(50);\n        poolConfig.setMaxIdle(10);\n        poolConfig.setMinIdle(5);\n        jedisPool = new JedisPool(poolConfig, REDIS_HOST, REDIS_PORT);\n    }\n    \n    public static void set(String key, String value) {\n        try (Jedis jedis = jedisPool.getResource()) {\n            jedis.setex(key, CACHE_TTL, value);\n        }\n    }\n    \n    public static String get(String key) {\n        try (Jedis jedis = jedisPool.getResource()) {\n            return jedis.get(key);\n        }\n    }\n    \n    public static void delete(String key) {\n        try (Jedis jedis = jedisPool.getResource()) {\n            jedis.del(key);\n        }\n    }\n    \n    public static void invalidatePattern(String pattern) {\n        try (Jedis jedis = jedisPool.getResource()) {\n            Set<String> keys = jedis.keys(pattern);\n            if (!keys.isEmpty()) {\n                jedis.del(keys.toArray(new String[0]));\n            }\n        }\n    }\n}\n```\n\n3. キャッシュ戦略の実装:\n```java\n// 記事取得時のキャッシュ処理\nprivate APIGatewayProxyResponseEvent getArticle(APIGatewayProxyRequestEvent input) {\n    String slug = extractSlugFromPath(input.getPath());\n    String cacheKey = \"article:\" + slug;\n    \n    // キャッシュから記事を取得\n    String cachedArticle = RedisClient.get(cacheKey);\n    if (cachedArticle != null) {\n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(200)\n                .withBody(cachedArticle);\n    }\n    \n    // キャッシュにない場合は DynamoDB から取得\n    GetItemRequest getItemRequest = GetItemRequest.builder()\n            .tableName(ARTICLES_TABLE_NAME)\n            .key(Map.of(\"slug\", AttributeValue.builder().s(slug).build()))\n            .build();\n    \n    GetItemResponse response = dynamoDbClient.getItem(getItemRequest);\n    \n    if (response.item().isEmpty()) {\n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(404)\n                .withBody(\"Article not found\");\n    }\n    \n    // 記事データの整形\n    Map<String, Object> articleData = convertDynamoItemToArticle(response.item());\n    \n    try {\n        String articleJson = new ObjectMapper().writeValueAsString(articleData);\n        \n        // キャッシュに保存\n        RedisClient.set(cacheKey, articleJson);\n        \n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(200)\n                .withBody(articleJson);\n    } catch (JsonProcessingException e) {\n        return new APIGatewayProxyResponseEvent()\n                .withStatusCode(500)\n                .withBody(\"Error processing article\");\n    }\n}\n\n// 記事更新時のキャッシュ無効化\nprivate APIGatewayProxyResponseEvent updateArticle(APIGatewayProxyRequestEvent input) {\n    String slug = extractSlugFromPath(input.getPath());\n    \n    // 記事更新ロジック\n    // ...\n    \n    // キャッシュの無効化\n    RedisClient.delete(\"article:\" + slug);\n    RedisClient.invalidatePattern(\"articles:*\"); // 記事リストのキャッシュも無効化\n    \n    // 更新された記事を返す\n    // ...\n}\n```\n\n4. Lambda 関数の環境変数設定:\n```typescript\nconst articleHandler = new lambda.Function(this, 'ArticleHandler', {\n  // ...\n  environment: {\n    ARTICLES_TABLE_NAME: articlesTable.tableName,\n    REDIS_HOST: redisCluster.attrRedisEndpointAddress,\n    REDIS_PORT: redisCluster.attrRedisEndpointPort\n  },\n  vpc: vpc,\n  securityGroups: [lambdaSecurityGroup],\n  vpcSubnets: {\n    subnetType: ec2.SubnetType.PRIVATE_WITH_NAT\n  }\n});\n```",
+      "testStrategy": "1. Redis クライアントのユニットテスト（モックを使用）\n2. キャッシュヒット・ミスのシナリオテスト\n3. キャッシュ無効化ロジックのテスト\n4. TTL（有効期限）の動作確認\n5. 高負荷時のパフォーマンステスト（キャッシュあり・なしの比較）\n6. キャッシュ整合性のテスト（更新後のデータ反映）\n7. フェイルオーバーテスト（Redis 接続エラー時の動作）\n8. メモリ使用量のモニタリングテスト",
+      "priority": "low",
+      "dependencies": [
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "ElastiCache Redis Cluster Setup and Security Configuration",
+          "description": "Provision an Amazon ElastiCache Redis cluster, configure node types, replication, and set up security groups, subnet groups, and IAM roles to restrict access.",
+          "dependencies": [],
+          "details": "This includes selecting the appropriate Redis version, configuring parameter groups, enabling encryption in transit and at rest, and setting up access control lists (ACLs) for secure access.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "VPC Configuration for Lambda to Redis Connectivity",
+          "description": "Configure the VPC, subnets, and security groups to allow AWS Lambda functions to securely connect to the ElastiCache Redis cluster.",
+          "dependencies": [
+            1
+          ],
+          "details": "Ensure Lambda is attached to the correct VPC and subnets, update security group rules to allow inbound/outbound traffic between Lambda and Redis, and verify network connectivity.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Redis Client Implementation with Connection Pooling",
+          "description": "Integrate a Redis client library in the application, implement connection pooling, and configure pool size and timeout settings for optimal performance.",
+          "dependencies": [
+            2
+          ],
+          "details": "Choose a Redis client that supports connection pooling (e.g., Lettuce or Jedis for Java), configure the pool to limit concurrent connections, and ensure thread safety and efficient resource usage.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Cache Strategy Design for Different Data Types",
+          "description": "Design and document caching strategies tailored to various data types (e.g., session data, frequently accessed objects, computed results), including TTL policies and cache key patterns.",
+          "dependencies": [
+            3
+          ],
+          "details": "Define which data should be cached, appropriate expiration times, and cache key naming conventions to avoid collisions and ensure efficient retrieval.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Cache Invalidation Patterns Implementation",
+          "description": "Implement cache invalidation mechanisms such as time-based expiration, explicit deletion, and event-driven invalidation to maintain data consistency between cache and database.",
+          "dependencies": [
+            4
+          ],
+          "details": "Choose and implement invalidation patterns (e.g., cache-aside, write-through, pub/sub for event-driven invalidation), and ensure the application logic properly handles cache misses and updates.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "title": "モニタリングとアラートの設定",
+      "description": "CloudWatch ダッシュボード、アラート、および X-Ray による分散トレーシングを設定します。",
+      "details": "1. CloudWatch ダッシュボードの作成:\n```typescript\nconst dashboard = new cloudwatch.Dashboard(this, 'RealWorldDashboard', {\n  dashboardName: 'RealWorld-Serverless-Dashboard'\n});\n\n// Lambda メトリクスの追加\nconst lambdaMetrics = [\n  userHandler, profileHandler, articleHandler, commentHandler, tagHandler, favoriteHandler, feedHandler\n].map(lambdaFn => {\n  return [\n    new cloudwatch.Metric({\n      namespace: 'AWS/Lambda',\n      metricName: 'Invocations',\n      dimensionsMap: { FunctionName: lambdaFn.functionName },\n      statistic: 'Sum',\n      period: cdk.Duration.minutes(1)\n    }),\n    new cloudwatch.Metric({\n      namespace: 'AWS/Lambda',\n      metricName: 'Errors',\n      dimensionsMap: { FunctionName: lambdaFn.functionName },\n      statistic: 'Sum',\n      period: cdk.Duration.minutes(1)\n    }),\n    new cloudwatch.Metric({\n      namespace: 'AWS/Lambda',\n      metricName: 'Duration',\n      dimensionsMap: { FunctionName: lambdaFn.functionName },\n      statistic: 'Average',\n      period: cdk.Duration.minutes(1)\n    })\n  ];\n}).flat();\n\n// API Gateway メトリクスの追加\nconst apiMetrics = [\n  new cloudwatch.Metric({\n    namespace: 'AWS/ApiGateway',\n    metricName: 'Count',\n    dimensionsMap: { ApiName: api.restApiName },\n    statistic: 'Sum',\n    period: cdk.Duration.minutes(1)\n  }),\n  new cloudwatch.Metric({\n    namespace: 'AWS/ApiGateway',\n    metricName: 'Latency',\n    dimensionsMap: { ApiName: api.restApiName },\n    statistic: 'Average',\n    period: cdk.Duration.minutes(1)\n  }),\n  new cloudwatch.Metric({\n    namespace: 'AWS/ApiGateway',\n    metricName: '4XXError',\n    dimensionsMap: { ApiName: api.restApiName },\n    statistic: 'Sum',\n    period: cdk.Duration.minutes(1)\n  }),\n  new cloudwatch.Metric({\n    namespace: 'AWS/ApiGateway',\n    metricName: '5XXError',\n    dimensionsMap: { ApiName: api.restApiName },\n    statistic: 'Sum',\n    period: cdk.Duration.minutes(1)\n  })\n];\n\n// DynamoDB メトリクスの追加\nconst dynamoMetrics = [\n  usersTable, profilesTable, articlesTable, commentsTable, followsTable, favoritesTable, tagsTable\n].map(table => {\n  return [\n    new cloudwatch.Metric({\n      namespace: 'AWS/DynamoDB',\n      metricName: 'ConsumedReadCapacityUnits',\n      dimensionsMap: { TableName: table.tableName },\n      statistic: 'Sum',\n      period: cdk.Duration.minutes(1)\n    }),\n    new cloudwatch.Metric({\n      namespace: 'AWS/DynamoDB',\n      metricName: 'ConsumedWriteCapacityUnits',\n      dimensionsMap: { TableName: table.tableName },\n      statistic: 'Sum',\n      period: cdk.Duration.minutes(1)\n    })\n  ];\n}).flat();\n\n// ダッシュボードにウィジェットを追加\ndashboard.addWidgets(\n  new cloudwatch.GraphWidget({\n    title: 'Lambda Invocations',\n    left: lambdaMetrics.filter(m => m.metricName === 'Invocations')\n  }),\n  new cloudwatch.GraphWidget({\n    title: 'Lambda Errors',\n    left: lambdaMetrics.filter(m => m.metricName === 'Errors')\n  }),\n  new cloudwatch.GraphWidget({\n    title: 'Lambda Duration',\n    left: lambdaMetrics.filter(m => m.metricName === 'Duration')\n  }),\n  new cloudwatch.GraphWidget({\n    title: 'API Gateway',\n    left: apiMetrics\n  }),\n  new cloudwatch.GraphWidget({\n    title: 'DynamoDB Read Capacity',\n    left: dynamoMetrics.filter(m => m.metricName === 'ConsumedReadCapacityUnits')\n  }),\n  new cloudwatch.GraphWidget({\n    title: 'DynamoDB Write Capacity',\n    left: dynamoMetrics.filter(m => m.metricName === 'ConsumedWriteCapacityUnits')\n  })\n);\n```\n\n2. CloudWatch アラートの設定:\n```typescript\n// Lambda エラーアラート\nconst lambdaErrorAlarm = new cloudwatch.Alarm(this, 'LambdaErrorAlarm', {\n  metric: new cloudwatch.Metric({\n    namespace: 'AWS/Lambda',\n    metricName: 'Errors',\n    dimensionsMap: { FunctionName: articleHandler.functionName },\n    statistic: 'Sum',\n    period: cdk.Duration.minutes(1)\n  }),\n  threshold: 5,\n  evaluationPeriods: 1,\n  alarmDescription: 'Alarm if the Article Lambda function has more than 5 errors in 1 minute',\n  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD\n});\n\n// API Gateway 5XX エラーアラート\nconst api5xxErrorAlarm = new cloudwatch.Alarm(this, 'Api5xxErrorAlarm', {\n  metric: new cloudwatch.Metric({\n    namespace: 'AWS/ApiGateway',\n    metricName: '5XXError',\n    dimensionsMap: { ApiName: api.restApiName },\n    statistic: 'Sum',\n    period: cdk.Duration.minutes(1)\n  }),\n  threshold: 10,\n  evaluationPeriods: 1,\n  alarmDescription: 'Alarm if the API Gateway has more than 10 5XX errors in 1 minute',\n  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD\n});\n\n// DynamoDB スロットリングアラート\nconst dynamoThrottlingAlarm = new cloudwatch.Alarm(this, 'DynamoThrottlingAlarm', {\n  metric: new cloudwatch.Metric({\n    namespace: 'AWS/DynamoDB',\n    metricName: 'ThrottledRequests',\n    dimensionsMap: { TableName: articlesTable.tableName },\n    statistic: 'Sum',\n    period: cdk.Duration.minutes(1)\n  }),\n  threshold: 10,\n  evaluationPeriods: 1,\n  alarmDescription: 'Alarm if the Articles table has more than 10 throttled requests in 1 minute',\n  comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD\n});\n```\n\n3. X-Ray トレーシングの設定:\n```typescript\n// Lambda 関数の X-Ray トレーシングを有効化\nconst lambdaFunctions = [\n  userHandler, profileHandler, articleHandler, commentHandler, tagHandler, favoriteHandler, feedHandler\n];\n\nlambdaFunctions.forEach(lambdaFn => {\n  lambdaFn.addEnvironment('AWS_XRAY_TRACING_NAME', lambdaFn.functionName);\n  lambdaFn.addToRolePolicy(new iam.PolicyStatement({\n    actions: ['xray:PutTraceSegments', 'xray:PutTelemetryRecords'],\n    resources: ['*']\n  }));\n});\n\n// API Gateway の X-Ray トレーシングを有効化\napi.node.defaultChild.addPropertyOverride('TracingEnabled', true);\n```\n\n4. カスタムメトリクスの実装:\n```java\nprivate void emitCustomMetrics(String metricName, double value, Map<String, String> dimensions) {\n    CloudWatchClient cloudWatchClient = CloudWatchClient.create();\n    \n    List<Dimension> dimensionList = dimensions.entrySet().stream()\n            .map(entry -> Dimension.builder().name(entry.getKey()).value(entry.getValue()).build())\n            .collect(Collectors.toList());\n    \n    MetricDatum datum = MetricDatum.builder()\n            .metricName(metricName)\n            .value(value)\n            .dimensions(dimensionList)\n            .timestamp(Instant.now())\n            .unit(StandardUnit.COUNT)\n            .build();\n    \n    PutMetricDataRequest request = PutMetricDataRequest.builder()\n            .namespace(\"RealWorld/Custom\")\n            .metricData(datum)\n            .build();\n    \n    cloudWatchClient.putMetricData(request);\n}\n\n// 使用例：記事作成時のカスタムメトリクス\nprivate APIGatewayProxyResponseEvent createArticle(APIGatewayProxyRequestEvent input) {\n    // 記事作成ロジック\n    // ...\n    \n    // カスタムメトリクスの送信\n    emitCustomMetrics(\"ArticleCreated\", 1.0, Map.of(\n            \"UserId\", userId,\n            \"Environment\", System.getenv(\"ENVIRONMENT\")\n    ));\n    \n    // レスポンスの返却\n    // ...\n}\n```",
+      "testStrategy": "1. CloudWatch ダッシュボードの表示と機能確認\n2. アラートのテスト（テストイベントを生成してアラートがトリガーされることを確認）\n3. X-Ray トレーシングの確認（トレースデータが正しく記録されることを確認）\n4. カスタムメトリクスのテスト（メトリクスが正しく送信されることを確認）\n5. ログフィルタリングとインサイトクエリのテスト\n6. アラート通知の確認（SNS トピックへの通知など）\n7. ダッシュボードのクロスアカウント共有のテスト（必要に応じて）\n8. 異常検出アラームのテスト（必要に応じて）",
+      "priority": "low",
+      "dependencies": [
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "CloudWatch Dashboard Creation with Key Metrics",
+          "description": "Design and implement a CloudWatch dashboard that visualizes key metrics for critical AWS services. This includes selecting relevant widgets, arranging them for clarity, and ensuring the dashboard provides a comprehensive overview for SRE, developers, and product teams.",
+          "dependencies": [],
+          "details": "Identify top-level service metrics (e.g., API Gateway performance, error rates, custom KPIs) and add them as widgets to the dashboard using the CloudWatch console, CLI, or API. Ensure the dashboard is easy to interpret and regularly reviewed for relevance.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Alert Configuration for Critical Service Thresholds",
+          "description": "Set up CloudWatch alarms for critical service metrics, defining thresholds that trigger alerts when exceeded. Configure notification actions such as sending alerts to an SNS topic or email.",
+          "dependencies": [
+            1
+          ],
+          "details": "Determine which metrics require alerting (e.g., high error rates, latency spikes), set appropriate thresholds, and configure alarm actions. Integrate alarms with notification channels to ensure timely response.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "X-Ray Tracing Implementation Across Services",
+          "description": "Enable AWS X-Ray tracing for all relevant services to provide distributed tracing and performance insights across the serverless architecture.",
+          "dependencies": [
+            1
+          ],
+          "details": "Instrument Lambda functions, API Gateway, and other supported services with X-Ray. Ensure traces are captured end-to-end and integrated with CloudWatch for unified observability.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Custom Metrics Implementation for Business Events",
+          "description": "Develop and publish custom CloudWatch metrics that track key business events, such as order creation or user signups, to provide deeper operational and business insights.",
+          "dependencies": [
+            1
+          ],
+          "details": "Identify critical business events, instrument code to emit custom metrics to CloudWatch, and add these metrics to the dashboard and alerting setup as needed.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "CI/CD パイプラインの構築",
+      "description": "AWS CodePipeline を使用して、継続的インテグレーションと継続的デプロイメントのパイプラインを構築します。",
+      "details": "1. CodePipeline の設定:\n```typescript\nconst sourceOutput = new codepipeline.Artifact();\nconst buildOutput = new codepipeline.Artifact();\n\nconst pipeline = new codepipeline.Pipeline(this, 'RealWorldPipeline', {\n  pipelineName: 'RealWorld-Serverless-Pipeline',\n  crossAccountKeys: false\n});\n\n// ソースステージ（GitHub からのソース取得）\nconst sourceAction = new codepipeline_actions.GitHubSourceAction({\n  actionName: 'GitHub_Source',\n  owner: 'your-github-username',\n  repo: 'realworld-serverless',\n  branch: 'main',\n  oauthToken: cdk.SecretValue.secretsManager('github-token'),\n  output: sourceOutput\n});\n\npipeline.addStage({\n  stageName: 'Source',\n  actions: [sourceAction]\n});\n\n// ビルドステージ（Maven/Gradle ビルドと単体テスト）\nconst buildProject = new codebuild.PipelineProject(this, 'RealWorldBuild', {\n  environment: {\n    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3,\n    privileged: true\n  },\n  buildSpec: codebuild.BuildSpec.fromObject({\n    version: '0.2',\n    phases: {\n      install: {\n        'runtime-versions': {\n          java: 'corretto21'\n        }\n      },\n      pre_build: {\n        commands: [\n          'echo Logging in to Amazon ECR...',\n          'aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com'\n        ]\n      },\n      build: {\n        commands: [\n          'echo Build started on `date`',\n          'mvn clean package',\n          'echo Running tests...',\n          'mvn test'\n        ]\n      },\n      post_build: {\n        commands: [\n          'echo Build completed on `date`',\n          'mkdir -p dist',\n          'cp target/*.jar dist/',\n          'cp -r cdk dist/'\n        ]\n      }\n    },\n    artifacts: {\n      'base-directory': 'dist',\n      files: [\n        '**/*'\n      ]\n    }\n  })\n});\n\nconst buildAction = new codepipeline_actions.CodeBuildAction({\n  actionName: 'Build',\n  project: buildProject,\n  input: sourceOutput,\n  outputs: [buildOutput]\n});\n\npipeline.addStage({\n  stageName: 'Build',\n  actions: [buildAction]\n});\n\n// テストステージ（統合テスト）\nconst testProject = new codebuild.PipelineProject(this, 'RealWorldTest', {\n  environment: {\n    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3\n  },\n  buildSpec: codebuild.BuildSpec.fromObject({\n    version: '0.2',\n    phases: {\n      install: {\n        'runtime-versions': {\n          java: 'corretto21',\n          nodejs: '16'\n        },\n        commands: [\n          'npm install -g newman'\n        ]\n      },\n      build: {\n        commands: [\n          'echo Running integration tests...',\n          'cd integration-tests',\n          'newman run RealWorld.postman_collection.json -e dev.postman_environment.json'\n        ]\n      }\n    }\n  })\n});\n\nconst testAction = new codepipeline_actions.CodeBuildAction({\n  actionName: 'IntegrationTest',\n  project: testProject,\n  input: buildOutput\n});\n\npipeline.addStage({\n  stageName: 'Test',\n  actions: [testAction]\n});\n\n// デプロイステージ（CDK デプロイ）\nconst deployProject = new codebuild.PipelineProject(this, 'RealWorldDeploy', {\n  environment: {\n    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3,\n    privileged: true\n  },\n  buildSpec: codebuild.BuildSpec.fromObject({\n    version: '0.2',\n    phases: {\n      install: {\n        'runtime-versions': {\n          nodejs: '16'\n        },\n        commands: [\n          'cd cdk',\n          'npm install',\n          'npm install -g aws-cdk'\n        ]\n      },\n      build: {\n        commands: [\n          'echo Deploying to development environment...',\n          'cdk deploy --require-approval never'\n        ]\n      }\n    }\n  })\n});\n\n// デプロイプロジェクトに必要な権限を付与\ndeployProject.addToRolePolicy(new iam.PolicyStatement({\n  actions: ['cloudformation:*', 's3:*', 'iam:*', 'lambda:*', 'apigateway:*', 'dynamodb:*', 'cognito-idp:*'],\n  resources: ['*']\n}));\n\nconst deployAction = new codepipeline_actions.CodeBuildAction({\n  actionName: 'Deploy',\n  project: deployProject,\n  input: buildOutput\n});\n\npipeline.addStage({\n  stageName: 'Deploy',\n  actions: [deployAction]\n});\n```\n\n2. 環境分離の設定:\n```typescript\n// 環境変数を使用して異なる環境を設定\nconst environment = this.node.tryGetContext('environment') || 'dev';\n\nconst environmentConfig = {\n  dev: {\n    stackName: 'RealWorld-Dev',\n    lambdaMemory: 512,\n    logRetention: logs.RetentionDays.ONE_WEEK\n  },\n  staging: {\n    stackName: 'RealWorld-Staging',\n    lambdaMemory: 1024,\n    logRetention: logs.RetentionDays.TWO_WEEKS\n  },\n  prod: {\n    stackName: 'RealWorld-Prod',\n    lambdaMemory: 2048,\n    logRetention: logs.RetentionDays.ONE_MONTH\n  }\n}[environment];\n\n// 環境に応じた設定を適用\nconst userHandler = new lambda.Function(this, 'UserHandler', {\n  runtime: lambda.Runtime.JAVA_21,\n  code: lambda.Code.fromAsset('../target/user-handler.jar'),\n  handler: 'com.realworld.UserHandler::handleRequest',\n  environment: {\n    USERS_TABLE_NAME: usersTable.tableName,\n    ENVIRONMENT: environment\n  },\n  memorySize: environmentConfig.lambdaMemory,\n  timeout: cdk.Duration.seconds(30),\n  logRetention: environmentConfig.logRetention\n});\n```\n\n3. 承認ステップの追加（本番環境デプロイ前）:\n```typescript\n// 本番環境へのデプロイ前に手動承認ステップを追加\nif (environment === 'prod') {\n  const approvalAction = new codepipeline_actions.ManualApprovalAction({\n    actionName: 'Approve',\n    runOrder: 1\n  });\n  \n  const prodDeployAction = new codepipeline_actions.CodeBuildAction({\n    actionName: 'Deploy',\n    project: deployProject,\n    input: buildOutput,\n    runOrder: 2\n  });\n  \n  pipeline.addStage({\n    stageName: 'Production',\n    actions: [approvalAction, prodDeployAction]\n  });\n} else {\n  const deployAction = new codepipeline_actions.CodeBuildAction({\n    actionName: 'Deploy',\n    project: deployProject,\n    input: buildOutput\n  });\n  \n  pipeline.addStage({\n    stageName: 'Deploy',\n    actions: [deployAction]\n  });\n}\n```\n\n4. テスト自動化の設定:\n```typescript\n// テスト用の Postman コレクションとテスト環境の設定\nconst testProject = new codebuild.PipelineProject(this, 'RealWorldTest', {\n  environment: {\n    buildImage: codebuild.LinuxBuildImage.AMAZON_LINUX_2_3,\n    environmentVariables: {\n      API_ENDPOINT: {\n        value: api.url,\n        type: codebuild.BuildEnvironmentVariableType.PLAINTEXT\n      },\n      USER_POOL_ID: {\n        value: userPool.userPoolId,\n        type: codebuild.BuildEnvironmentVariableType.PLAINTEXT\n      },\n      CLIENT_ID: {\n        value: userPoolClient.userPoolClientId,\n        type: codebuild.BuildEnvironmentVariableType.PLAINTEXT\n      }\n    }\n  },\n  buildSpec: codebuild.BuildSpec.fromObject({\n    version: '0.2',\n    phases: {\n      install: {\n        'runtime-versions': {\n          nodejs: '16'\n        },\n        commands: [\n          'npm install -g newman',\n          'npm install -g postman-to-k6',\n          'npm install -g aws-api-gateway-cli-test'\n        ]\n      },\n      pre_build: {\n        commands: [\n          'echo Generating test environment...',\n          'node generate-test-env.js $API_ENDPOINT $USER_POOL_ID $CLIENT_ID > test-env.json'\n        ]\n      },\n      build: {\n        commands: [\n          'echo Running API tests...',\n          'newman run RealWorld.postman_collection.json -e test-env.json --reporters cli,junit,htmlextra --reporter-junit-export results/junit.xml --reporter-htmlextra-export results/report.html',\n          'echo Running load tests...',\n          'postman-to-k6 RealWorld.postman_collection.json -e test-env.json -o load-test.js',\n          'k6 run --vus 10 --duration 30s load-test.js'\n        ]\n      }\n    },\n    reports: {\n      JunitReports: {\n        files: [\n          'results/junit.xml'\n        ],\n        'base-directory': './',\n        'file-format': 'JUNITXML'\n      }\n    },\n    artifacts: {\n      'base-directory': './results',\n      files: [\n        'report.html',\n        'junit.xml'\n      ]\n    }\n  })\n});\n```",
+      "testStrategy": "1. パイプラインの各ステージの動作確認（ソース取得、ビルド、テスト、デプロイ）\n2. 異なる環境（開発、ステージング、本番）へのデプロイテスト\n3. 手動承認ステップの動作確認\n4. ビルド失敗時のロールバック動作の確認\n5. テスト自動化の確認（単体テスト、統合テスト、負荷テスト）\n6. アーティファクトの保存と取得のテスト\n7. パイプラインの通知設定のテスト（成功・失敗時の通知）\n8. クロスアカウントデプロイのテスト（必要に応じて）\n9. ブルー/グリーンデプロイメントのテスト（必要に応じて）",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "status": "pending",
+      "subtasks": []
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+# Task ID: 4
+# Title: API Gateway のセットアップと基本エンドポイントの実装
+# Status: pending
+# Dependencies: 1, 3
+# Priority: high
+# Description: API Gateway を設定し、RealWorld API 仕様に基づいた基本的なエンドポイントを実装します。OpenAPI 仕様を使用して API を文書化します。
+# Details:
+1. REST API の作成:
+```typescript
+const api = new apigateway.RestApi(this, 'RealWorldApi', {
+  restApiName: 'RealWorld API',
+  description: 'RealWorld backend API',
+  deployOptions: {
+    stageName: 'dev',
+    loggingLevel: apigateway.MethodLoggingLevel.INFO,
+    dataTraceEnabled: true
+  },
+  defaultCorsPreflightOptions: {
+    allowOrigins: apigateway.Cors.ALL_ORIGINS,
+    allowMethods: apigateway.Cors.ALL_METHODS,
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  }
+});
+```
+
+2. API リソースの定義:
+```typescript
+const usersResource = api.root.addResource('users');
+const userResource = api.root.addResource('user');
+const profilesResource = api.root.addResource('profiles');
+const articlesResource = api.root.addResource('articles');
+const tagsResource = api.root.addResource('tags');
+```
+
+3. Cognito オーソライザーの設定:
+```typescript
+const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'RealWorldAuthorizer', {
+  cognitoUserPools: [userPool]
+});
+```
+
+4. 基本的なエンドポイントの実装:
+   - POST /api/users (登録)
+   - POST /api/users/login (ログイン)
+   - GET /api/user (現在のユーザー)
+   - GET /api/tags (タグリスト)
+
+5. OpenAPI 仕様の作成と API Gateway へのインポート
+
+# Test Strategy:
+1. Postman コレクションを作成して API エンドポイントをテスト
+2. API Gateway コンソールからテストリクエストを実行
+3. CORS 設定のテスト（ブラウザからのリクエスト）
+4. 認証が必要なエンドポイントと認証が不要なエンドポイントの動作確認
+5. エラーレスポンスのテスト（400, 401, 403, 404, 500）
+6. API Gateway ステージ変数とデプロイメントのテスト
+
+# Subtasks:
+## 1. Create REST API and Configure Basic Settings [pending]
+### Dependencies: None
+### Description: Set up the initial REST API in AWS API Gateway and configure basic settings
+### Details:
+Log into AWS Management Console and navigate to API Gateway. Create a new REST API by selecting 'Create API' and 'REST API' option. Configure API name, description, endpoint type, and enable CORS if needed. Set up appropriate API Gateway stages (dev, test, prod) and configure stage variables if required.
+
+## 2. Define Resources and Methods for Core Endpoints [pending]
+### Dependencies: 4.1
+### Description: Create the resource hierarchy and configure HTTP methods for each endpoint
+### Details:
+Using the Actions dropdown, create resources to define your API structure. For each resource, create appropriate HTTP methods (GET, POST, PUT, DELETE) as needed. Configure request parameters, request body models, and response models for each method. Set up integrations with backend services (Lambda, HTTP, or Mock) and configure request/response transformations if necessary.
+
+## 3. Integrate Cognito Authorizer and Configure Permissions [pending]
+### Dependencies: 4.2
+### Description: Set up Cognito User Pool authorizer and configure method-level permissions
+### Details:
+Create a Cognito User Pool if not already available. In API Gateway, create a new authorizer linked to the Cognito User Pool. Apply the authorizer to the appropriate methods that require authentication. Configure authorization scopes if using OAuth2. Test the authorization flow to ensure proper access control. Set up IAM roles and policies for API Gateway to interact with other AWS services.
+
+## 4. Create OpenAPI Specification and Documentation [pending]
+### Dependencies: 4.3
+### Description: Generate and enhance OpenAPI specification for API documentation
+### Details:
+Export the API as an OpenAPI (formerly Swagger) specification from API Gateway. Enhance the exported specification with detailed descriptions, examples, and schema definitions. Set up API Gateway documentation using the OpenAPI specification. Configure SDK generation options if client SDKs are needed. Validate the OpenAPI specification using available tools to ensure compliance with standards.
+

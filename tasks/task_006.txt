@@ -1,0 +1,125 @@
+# Task ID: 6
+# Title: プロフィール管理サービスの実装
+# Status: pending
+# Dependencies: 2, 4, 5
+# Priority: medium
+# Description: ユーザープロフィールの表示、更新、およびフォロー機能を処理する Lambda 関数を実装します。
+# Details:
+1. プロフィール管理 Lambda 関数の実装:
+```java
+public class ProfileHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+    private final DynamoDbClient dynamoDbClient = DynamoDbClient.create();
+    private final String PROFILES_TABLE_NAME = System.getenv("PROFILES_TABLE_NAME");
+    private final String FOLLOWS_TABLE_NAME = System.getenv("FOLLOWS_TABLE_NAME");
+    
+    @Override
+    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent input, Context context) {
+        String path = input.getPath();
+        String httpMethod = input.getHttpMethod();
+        
+        if (path.matches("/api/profiles/[^/]+") && httpMethod.equals("GET")) {
+            return getProfile(input);
+        } else if (path.matches("/api/profiles/[^/]+/follow") && httpMethod.equals("POST")) {
+            return followUser(input);
+        } else if (path.matches("/api/profiles/[^/]+/follow") && httpMethod.equals("DELETE")) {
+            return unfollowUser(input);
+        }
+        
+        return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withBody("Not Found");
+    }
+    
+    private APIGatewayProxyResponseEvent getProfile(APIGatewayProxyRequestEvent input) {
+        // プロフィール取得ロジックを実装
+    }
+    
+    private APIGatewayProxyResponseEvent followUser(APIGatewayProxyRequestEvent input) {
+        // フォローロジックを実装
+    }
+    
+    private APIGatewayProxyResponseEvent unfollowUser(APIGatewayProxyRequestEvent input) {
+        // フォロー解除ロジックを実装
+    }
+}
+```
+
+2. API Gateway との統合:
+```typescript
+const profileHandler = new lambda.Function(this, 'ProfileHandler', {
+  runtime: lambda.Runtime.JAVA_21,
+  code: lambda.Code.fromAsset('../target/profile-handler.jar'),
+  handler: 'com.realworld.ProfileHandler::handleRequest',
+  environment: {
+    PROFILES_TABLE_NAME: profilesTable.tableName,
+    FOLLOWS_TABLE_NAME: followsTable.tableName
+  },
+  timeout: cdk.Duration.seconds(30)
+});
+
+profilesTable.grantReadWriteData(profileHandler);
+followsTable.grantReadWriteData(profileHandler);
+
+const usernameResource = profilesResource.addResource('{username}');
+usernameResource.addMethod('GET', new apigateway.LambdaIntegration(profileHandler));
+
+const followResource = usernameResource.addResource('follow');
+followResource.addMethod('POST', new apigateway.LambdaIntegration(profileHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+followResource.addMethod('DELETE', new apigateway.LambdaIntegration(profileHandler), {
+  authorizer: authorizer,
+  authorizationType: apigateway.AuthorizationType.COGNITO
+});
+```
+
+3. S3 バケットの設定（プロフィール画像用）:
+```typescript
+const profileImagesBucket = new s3.Bucket(this, 'ProfileImagesBucket', {
+  removalPolicy: cdk.RemovalPolicy.RETAIN,
+  cors: [
+    {
+      allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.PUT],
+      allowedOrigins: ['*'],
+      allowedHeaders: ['*']
+    }
+  ]
+});
+
+profileImagesBucket.grantReadWrite(profileHandler);
+```
+
+# Test Strategy:
+1. プロフィール取得、フォロー、フォロー解除の各エンドポイントのユニットテスト
+2. DynamoDB との統合テスト（モックを使用）
+3. S3 との統合テスト（プロフィール画像のアップロードとURL生成）
+4. API Gateway を通じたエンドツーエンドテスト
+5. 認証と認可のテスト（認証されていないユーザー、認証されたユーザー）
+6. エラーケースのテスト（存在しないユーザー、自分自身をフォローするなど）
+
+# Subtasks:
+## 1. Implement Profile Retrieval Functionality [pending]
+### Dependencies: None
+### Description: Develop the service logic to retrieve user profile data, including basic information and profile details, from the data store.
+### Details:
+This includes designing API endpoints for fetching user profiles and ensuring efficient data access patterns.
+
+## 2. Implement Follow/Unfollow User Functionality [pending]
+### Dependencies: 6.1
+### Description: Add the ability for users to follow or unfollow other users, updating the relevant relationships in the data store.
+### Details:
+This involves creating endpoints and logic to manage follow relationships, ensuring data consistency and proper error handling.
+
+## 3. Integrate S3 for Profile Image Storage [pending]
+### Dependencies: 6.1
+### Description: Set up integration with Amazon S3 to handle uploading, storing, and retrieving user profile images.
+### Details:
+Implement logic for image upload, secure access, and linking image URLs to user profiles.
+
+## 4. Integrate DynamoDB for Profile and Follow Data [pending]
+### Dependencies: 6.1, 6.2
+### Description: Configure and implement DynamoDB tables and access patterns for storing user profiles and follow relationships.
+### Details:
+Design table schemas, implement data access logic, and ensure atomic updates for profile and follow/unfollow operations.
+
