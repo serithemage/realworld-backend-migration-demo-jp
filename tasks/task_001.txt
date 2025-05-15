@@ -1,6 +1,6 @@
 # Task ID: 1
 # Title: AWS 環境のセットアップと基本インフラストラクチャの構築
-# Status: pending
+# Status: in-progress
 # Dependencies: None
 # Priority: high
 # Description: AWS アカウントの設定、IAM ユーザーとロールの作成、VPC とセキュリティグループの設定、および基本的なインフラストラクチャのセットアップを行います。
@@ -41,7 +41,7 @@ export class RealWorldServerlessStack extends cdk.Stack {
 4. IAM ポリシーシミュレーターを使用して、作成したロールに適切な権限があることを検証
 
 # Subtasks:
-## 1. AWS Account Setup and IAM Configuration [pending]
+## 1. AWS Account Setup and IAM Configuration [in-progress]
 ### Dependencies: None
 ### Description: Create an AWS account, configure root user security, and set up IAM users, groups, and roles with appropriate permissions for environment management.
 ### Details:

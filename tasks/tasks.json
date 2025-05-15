@@ -8,7 +8,7 @@
       "testStrategy": "1. AWS CLI を使用して、作成したリソースが正しく設定されていることを確認\n2. CDK Synth コマンドを実行して、生成された CloudFormation テンプレートを検証\n3. 小規模なデプロイメントテストを実行して、インフラストラクチャのプロビジョニングが正常に機能することを確認\n4. IAM ポリシーシミュレーターを使用して、作成したロールに適切な権限があることを検証",
       "priority": "high",
       "dependencies": [],
-      "status": "pending",
+      "status": "in-progress",
       "subtasks": [
         {
           "id": 1,
@@ -16,7 +16,7 @@
           "description": "Create an AWS account, configure root user security, and set up IAM users, groups, and roles with appropriate permissions for environment management.",
           "dependencies": [],
           "details": "This includes enabling MFA for the root account, creating IAM users for team members, assigning least-privilege policies, and setting up IAM roles for automation and deployment.",
-          "status": "pending"
+          "status": "in-progress"
         },
         {
           "id": 2,
